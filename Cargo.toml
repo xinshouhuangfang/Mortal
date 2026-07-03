@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "libriichi",
     "exe-wrapper",
+    "play",
 ]
 
 [profile.release]

@@ -319,7 +319,7 @@ impl BatchGame {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::agent::Tsumogiri;
+    use crate::agent::{HumanAgent, Tsumogiri};
 
     #[test]
     fn tsumogiri() {
@@ -370,4 +370,5 @@ mod test {
         g.run(&mut agents, indexes, &[(1009, 0), (1021, 0)])
             .unwrap();
     }
+
 }

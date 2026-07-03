@@ -1,9 +1,10 @@
+pub mod game;
 mod board;
-mod game;
 mod one_vs_three;
 mod result;
 mod two_vs_two;
 
+pub use game::{BatchGame, Index};
 pub use board::Board;
 pub use result::GameResult;
 

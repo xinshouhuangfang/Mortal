@@ -1,0 +1,8 @@
+[package]
+name = "play"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+riichi = { package = "libriichi", path = "../libriichi", default-features = false, features = ["mimalloc"] }
+anyhow = "1"
