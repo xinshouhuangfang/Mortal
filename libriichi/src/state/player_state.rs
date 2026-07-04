@@ -1,6 +1,5 @@
 use super::action::ActionCandidate;
 use super::item::{ChiPon, KawaItem, Sutehai};
-use crate::algo::sp::Candidate;
 use crate::hand::tiles_to_string;
 use crate::must_tile;
 use crate::tile::Tile;
@@ -203,15 +202,6 @@ impl PlayerState {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let can_discard = self.last_cans.can_discard;
-        let mut sp_tables = Candidate::csv_header(can_discard).join("\t");
-        if let Ok(tables) = self.single_player_tables() {
-            for candidate in tables.max_ev_table {
-                sp_tables.push('\n');
-                sp_tables.push_str(&candidate.csv_row(can_discard).join("\t"));
-            }
-        }
-
         format!(
             r#"player (abs): {}
 oya (rel): {}
@@ -235,8 +225,7 @@ last kawa tile: {:?}
 tiles left: {}
 kawa:
 {zipped_kawa}
-single player table (max EV):
-{sp_tables}"#,
+"#,
             self.player_id,
             self.oya,
             self.bakaze,

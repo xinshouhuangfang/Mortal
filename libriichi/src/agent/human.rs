@@ -181,12 +181,16 @@ impl Agent for HumanAgent {
         let actor = self.player_id;
 
         eprintln!("\n===== YOUR TURN =====");
+        eprintln!("{}", state.brief_info());
         let tehai = state.tehai();
         let aka = state.akas_in_hand();
         eprintln!("手牌: {}", crate::hand::tiles_to_string(&tehai, aka));
         eprintln!("向听: {}", state.shanten());
         if let Some(t) = state.last_self_tsumo() {
             eprintln!("自摸: {t}");
+        }
+        if let Some(t) = state.last_kawa_tile() {
+            eprintln!("last_kawa_tile: {t}");
         }
         eprintln!();
 
