@@ -33,8 +33,8 @@ fn main() -> anyhow::Result<()> {
 
     let g = BatchGame::tenhou_hanchan(true);
     let mut agents: Vec<Box<dyn BatchAgent>> = vec![
-        Box::new(HumanAgent::new_batched(&[0, 1, 2, 3])?),
-        Box::new(Tsumogiri::new_batched(&[3, 2, 1, 0])?),
+        Box::new(HumanAgent::new_batched(&[0])?),
+        Box::new(Tsumogiri::new_batched(&[1, 2, 3])?),
     ];
 
     let indexes: Vec<_> = (0..games)
@@ -42,22 +42,16 @@ fn main() -> anyhow::Result<()> {
             [
                 [
                     Index { agent_idx: 0, player_id_idx: 0 },
-                    Index { agent_idx: 0, player_id_idx: 1 },
-                    Index { agent_idx: 1, player_id_idx: 1 },
                     Index { agent_idx: 1, player_id_idx: 0 },
-                ],
-                [
-                    Index { agent_idx: 1, player_id_idx: 3 },
+                    Index { agent_idx: 1, player_id_idx: 1 },
                     Index { agent_idx: 1, player_id_idx: 2 },
-                    Index { agent_idx: 0, player_id_idx: 2 },
-                    Index { agent_idx: 0, player_id_idx: 3 },
-                ],
+                ]
             ]
         })
         .collect();
 
     let seeds: Vec<_> = (0..games)
-        .flat_map(|i| [(60000 + i, 0x5678), (60000 + i, 0x5678)])
+        .flat_map(|i| [(60000 + i, 0x5678)])
         .collect();
 
     let results = g.run(&mut agents, &indexes, &seeds)?;
