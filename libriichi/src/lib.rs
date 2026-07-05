@@ -92,7 +92,7 @@
     clippy::useless_let_if_seq
 )]
 
-mod arena;
+pub mod arena;
 mod array;
 mod consts;
 mod dataset;
