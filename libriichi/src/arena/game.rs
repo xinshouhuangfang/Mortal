@@ -137,40 +137,13 @@ impl Game {
                     return self.poll(agents);
                 }
 
-                if !kyoku_result.can_renchan {
-                    self.kyoku += 1;
-                    if kyoku_result.has_hora {
-                        self.honba = 0;
-                    } else {
-                        self.honba += 1;
-                    }
-                    return self.poll(agents);
-                }
-
                 // renchan owari conditions:
                 // 1. can renchan
                 // 2. is at all-last
                 // 3. oya has at least 30000
                 // 4. oya is the top
-                let oya = kyoku_result.kyoku as usize % 4;
-                if kyoku_result.kyoku >= self.length - 1 && self.scores[oya] >= 30000 {
-                    let top = kyoku_result
-                        .scores
-                        .iter()
-                        .enumerate()
-                        .min_by_key(|&(_, &s)| -s)
-                        .map(|(i, _)| i)
-                        .unwrap();
-                    if top == oya {
-                        self.ended = true;
-                        return Ok(());
-                    }
-                }
-
-                // renchan
-                self.in_renchan = true;
-                self.honba += 1;
-                return self.poll(agents);
+                self.ended = true;
+                return Ok(());
             }
         };
 
@@ -222,6 +195,14 @@ impl BatchGame {
     pub const fn tenhou_hanchan(disable_progress_bar: bool) -> Self {
         Self {
             length: 8,
+            init_scores: [25000; 4],
+            disable_progress_bar,
+        }
+    }
+
+    pub const fn tenhou_east(disable_progress_bar: bool) -> Self {
+        Self {
+            length: 1,
             init_scores: [25000; 4],
             disable_progress_bar,
         }

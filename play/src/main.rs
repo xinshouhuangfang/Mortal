@@ -1,6 +1,8 @@
 use riichi::agent::{BatchAgent, HumanAgent, Tsumogiri};
 use riichi::arena::game::{BatchGame, Index};
+use std::fs::{self};
 use std::io::{self, Write};
+use std::path::Path;
 
 fn main() -> anyhow::Result<()> {
     println!("===== Mortal 麻将 — 人机对战 =====");
@@ -18,6 +20,9 @@ fn main() -> anyhow::Result<()> {
     println!("  pass / none: 跳过");
     println!();
 
+    let log_dir = Path::new("logs");
+    fs::create_dir_all(log_dir)?;
+
     let games: u64 = loop {
         print!("请输入对局数 (1-N): ");
         io::stdout().flush()?;
@@ -31,9 +36,9 @@ fn main() -> anyhow::Result<()> {
 
     println!("游戏开始！\n");
 
-    let g = BatchGame::tenhou_hanchan(true);
+    let g = BatchGame::tenhou_east(true);
     let mut agents: Vec<Box<dyn BatchAgent>> = vec![
-        Box::new(HumanAgent::new_batched(&[0])?),
+        Box::new(Tsumogiri::new_batched(&[0])?),
         Box::new(Tsumogiri::new_batched(&[1, 2, 3])?),
     ];
 
@@ -41,10 +46,10 @@ fn main() -> anyhow::Result<()> {
         .flat_map(|_| {
             [
                 [
-                    Index { agent_idx: 0, player_id_idx: 0 },
-                    Index { agent_idx: 1, player_id_idx: 0 },
-                    Index { agent_idx: 1, player_id_idx: 1 },
-                    Index { agent_idx: 1, player_id_idx: 2 },
+        Index { agent_idx: 0, player_id_idx: 0 },
+        Index { agent_idx: 1, player_id_idx: 0 },
+        Index { agent_idx: 1, player_id_idx: 1 },
+        Index { agent_idx: 1, player_id_idx: 2 },
                 ]
             ]
         })
@@ -66,7 +71,15 @@ fn main() -> anyhow::Result<()> {
             _ => "四位 (0)",
         };
         println!("  半庄 {}: 第{}位 {}", i + 1, rank + 1, pt);
+
+        // Save mjai log
+        let log = result.dump_json_log()?;
+        let (seed_val, key) = result.seed;
+        let path = log_dir.join(format!("{seed_val}_{key}.json"));
+        fs::write(&path, &log)?;
+        println!("  牌谱已保存: {}", path.display());
     }
 
+    println!("\n===== 全部结束 =====");
     Ok(())
 }
