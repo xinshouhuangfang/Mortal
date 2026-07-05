@@ -882,6 +882,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "play"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libriichi",
+]
+
+[[package]]
 name = "plotters"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
