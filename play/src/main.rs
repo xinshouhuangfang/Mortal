@@ -65,7 +65,8 @@ fn main() -> anyhow::Result<()> {
         // Save mjai log
         let log = result.dump_json_log()?;
         let (seed_val, key) = result.seed;
-        let path = log_dir.join(format!("{seed_val}_{key}.json"));
+        let x = fastrand::i32(1..=1000);
+        let path = log_dir.join(format!("{seed_val}_{key}_{x}.json"));
         fs::write(&path, &log)?;
         println!("  牌谱已保存: {}", path.display());
     }
