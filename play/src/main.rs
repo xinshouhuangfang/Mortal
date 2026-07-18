@@ -1,7 +1,6 @@
 use riichi::agent::{BatchAgent, HumanAgent, Tsumogiri};
 use riichi::arena::game::{BatchGame, Index};
 use std::fs::{self};
-use std::io::{self, Write};
 use std::path::Path;
 
 fn main() -> anyhow::Result<()> {
@@ -23,22 +22,13 @@ fn main() -> anyhow::Result<()> {
     let log_dir = Path::new("logs");
     fs::create_dir_all(log_dir)?;
 
-    let games: u64 = loop {
-        print!("请输入对局数 (1-N): ");
-        io::stdout().flush()?;
-        let mut line = String::new();
-        io::stdin().read_line(&mut line)?;
-        match line.trim().parse() {
-            Ok(n) if n >= 1 => break n,
-            _ => println!("请输入正整数"),
-        }
-    };
+    let games = 1;
 
     println!("游戏开始！\n");
 
     let g = BatchGame::tenhou_east(true);
     let mut agents: Vec<Box<dyn BatchAgent>> = vec![
-        Box::new(Tsumogiri::new_batched(&[0])?),
+        Box::new(HumanAgent::new_batched(&[0])?),
         Box::new(Tsumogiri::new_batched(&[1, 2, 3])?),
     ];
 

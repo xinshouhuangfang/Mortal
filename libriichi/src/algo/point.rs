@@ -110,6 +110,16 @@ impl Point {
             self.tsumo_ko * 2 + self.tsumo_oya
         }
     }
+
+    #[inline]
+    #[must_use]
+    pub const fn simple(count: i32) -> Self {
+        Self {
+            ron: 6000 * count,
+            tsumo_ko: 2000 * count,
+            tsumo_oya: 0,
+        }
+    }
 }
 
 #[cfg(test)]

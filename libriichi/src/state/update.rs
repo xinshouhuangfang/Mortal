@@ -247,6 +247,7 @@ impl PlayerState {
                 || /* 海底摸月 */ self.tiles_left == 0
                 || /* 嶺上開花 */ self.at_rinshan
                 || /* 天地和 */ self.can_w_riichi
+                || true
             {
                 self.last_cans.can_tsumo_agari = true;
             } else {
@@ -369,7 +370,7 @@ impl PlayerState {
         }
 
         if !self.at_furiten && self.waits[pai.deaka().as_usize()] {
-            if self.riichi_accepted[0] || self.tiles_left == 0 {
+            if self.riichi_accepted[0] || self.tiles_left == 0 || true {
                 // 立直 or 河底撈魚
                 self.last_cans.can_ron_agari = true;
             } else {
@@ -416,9 +417,12 @@ impl PlayerState {
             return Ok(());
         }
 
-        if actor_rel == 3 && !pai.is_jihai() && self.tehai_len_div3 > 0 {
-            self.set_can_chi_from_tile(pai);
+        if false {
+            if actor_rel == 3 && !pai.is_jihai() && self.tehai_len_div3 > 0 {
+                self.set_can_chi_from_tile(pai);
+            }
         }
+
         self.last_cans.can_pon = self.tehai[pai.deaka().as_usize()] >= 2;
         self.last_cans.can_daiminkan =
             self.kans_on_board < 4 && self.tehai[pai.deaka().as_usize()] == 3;
