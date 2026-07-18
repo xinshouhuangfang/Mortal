@@ -1,7 +1,7 @@
 use super::PlayerState;
 use super::action::ActionCandidate;
 use super::item::{ChiPon, KawaItem, Sutehai};
-use crate::algo::agari::{self, AgariCalculator};
+use crate::algo::agari::{self};
 use crate::algo::shanten;
 use crate::mjai::Event;
 use crate::rankings::Rankings;
@@ -232,39 +232,13 @@ impl PlayerState {
         self.witness_tile(pai)?;
         self.move_tile(pai, MoveType::Tsumo)?;
 
-        if self.can_w_riichi {
-            self.last_cans.can_ryukyoku = self.yaokyuu_kind_count() >= 9;
-        }
-
         if !self.riichi_accepted[0] {
             // Does not update shanten
             self.update_shanten_discards();
         }
 
         if self.waits[pai.deaka().as_usize()] {
-            if self.is_menzen // 門前清自摸和
-                || /* 立直 */ self.riichi_accepted[0]
-                || /* 海底摸月 */ self.tiles_left == 0
-                || /* 嶺上開花 */ self.at_rinshan
-                || /* 天地和 */ self.can_w_riichi
-                || true
-            {
-                self.last_cans.can_tsumo_agari = true;
-            } else {
-                let agari_calc = AgariCalculator {
-                    tehai: &self.tehai,
-                    is_menzen: self.is_menzen,
-                    chis: &self.chis,
-                    pons: &self.pons,
-                    minkans: &self.minkans,
-                    ankans: &self.ankans,
-                    bakaze: self.bakaze.as_u8(),
-                    jikaze: self.jikaze.as_u8(),
-                    winning_tile: pai.deaka().as_u8(),
-                    is_ron: false,
-                };
-                self.last_cans.can_tsumo_agari = agari_calc.has_yaku();
-            }
+            self.last_cans.can_tsumo_agari = true;
         }
 
         // haitei tile cannot be used for kakan or ankan
@@ -369,58 +343,8 @@ impl PlayerState {
             return Ok(());
         }
 
-        if !self.at_furiten && self.waits[pai.deaka().as_usize()] {
-            if self.riichi_accepted[0] || self.tiles_left == 0 || true {
-                // 立直 or 河底撈魚
-                self.last_cans.can_ron_agari = true;
-            } else {
-                let mut tehai_with_winning_tile = self.tehai;
-                tehai_with_winning_tile[pai.deaka().as_usize()] += 1;
-
-                let agari_calc = AgariCalculator {
-                    tehai: &tehai_with_winning_tile,
-                    is_menzen: self.is_menzen,
-                    chis: &self.chis,
-                    pons: &self.pons,
-                    minkans: &self.minkans,
-                    ankans: &self.ankans,
-                    bakaze: self.bakaze.as_u8(),
-                    jikaze: self.jikaze.as_u8(),
-                    winning_tile: pai.deaka().as_u8(),
-                    is_ron: true,
-                };
-                self.last_cans.can_ron_agari = agari_calc.has_yaku();
-            }
-
-            // Track same-cycle furiten
-            if self.last_cans.can_ron_agari {
-                // The hand has a yaku (can ron), but if the player does
-                // not ron at the next event, it will turn into a
-                // same-cycle furiten.
-                //
-                // Mark as furiten at the next event. We do not set
-                // `self.at_furiten = true` immediately because that
-                // would affect a likely feature encoding call right
-                // after this Dahai event.
-                self.to_mark_same_cycle_furiten = Some(());
-            } else {
-                // The hand doesn't have yaku. This is a no-yaku
-                // furiten.
-                //
-                // Mark as furiten immediately, following the behavior
-                // of Tenhou's furiten display.
-                self.at_furiten = true;
-            }
-        }
-
-        if self.riichi_accepted[0] || self.tiles_left == 0 {
+        if self.tiles_left == 0 {
             return Ok(());
-        }
-
-        if false {
-            if actor_rel == 3 && !pai.is_jihai() && self.tehai_len_div3 > 0 {
-                self.set_can_chi_from_tile(pai);
-            }
         }
 
         self.last_cans.can_pon = self.tehai[pai.deaka().as_usize()] >= 2;
@@ -825,50 +749,6 @@ impl PlayerState {
             .iter_mut()
             .take(self.oya as usize)
             .for_each(|kawa| kawa.push(None));
-    }
-
-    pub(super) fn set_can_chi_from_tile(&mut self, tile: Tile) {
-        self.last_cans.can_chi_low = false;
-        self.last_cans.can_chi_mid = false;
-        self.last_cans.can_chi_high = false;
-
-        let tile_id = tile.deaka().as_usize();
-        let literal_num = tile_id % 9 + 1;
-
-        // it considered case like 1111234 where you cannot chi 14
-        if literal_num <= 7 && self.tehai[tile_id + 1] > 0 && self.tehai[tile_id + 2] > 0 {
-            // TODO: check the conditions only when self.shanten == 0?
-            let mut tehai_after = self.tehai;
-            tehai_after[tile_id] = 0;
-            tehai_after[tile_id + 1] -= 1;
-            tehai_after[tile_id + 2] -= 1;
-            if literal_num < 7 {
-                tehai_after[tile_id + 3] = 0;
-            }
-            self.last_cans.can_chi_low = tehai_after.iter().any(|&t| t > 0);
-        }
-
-        if matches!(literal_num, 2..=8)
-            && self.tehai[tile_id - 1] > 0
-            && self.tehai[tile_id + 1] > 0
-        {
-            let mut tehai_after = self.tehai;
-            tehai_after[tile_id] = 0;
-            tehai_after[tile_id - 1] -= 1;
-            tehai_after[tile_id + 1] -= 1;
-            self.last_cans.can_chi_mid = tehai_after.iter().any(|&t| t > 0);
-        }
-
-        if literal_num >= 3 && self.tehai[tile_id - 2] > 0 && self.tehai[tile_id - 1] > 0 {
-            let mut tehai_after = self.tehai;
-            tehai_after[tile_id] = 0;
-            tehai_after[tile_id - 2] -= 1;
-            tehai_after[tile_id - 1] -= 1;
-            if literal_num > 3 {
-                tehai_after[tile_id - 3] = 0;
-            }
-            self.last_cans.can_chi_high = tehai_after.iter().any(|&t| t > 0);
-        }
     }
 
     /// Can be called at either 3n+1 or 3n+2.

@@ -46,7 +46,7 @@ fn main() -> anyhow::Result<()> {
         .collect();
 
     let seeds: Vec<_> = (0..games)
-        .flat_map(|i| [(60000 + i, 0x5678)])
+        .flat_map(|i| [(60000 + i, fastrand::u64(1..=1000))])
         .collect();
 
     let results = g.run(&mut agents, &indexes, &seeds)?;
