@@ -15,7 +15,6 @@ use ndarray::prelude::*;
 use rand::prelude::*;
 use rand_chacha::ChaCha12Rng;
 use sha3::{Digest, Sha3_256};
-use tinyvec::ArrayVec;
 
 /// The fields are all pub on purpose so the caller will be able to set the
 /// yama, doras, scores directly.
@@ -239,51 +238,8 @@ impl BoardState {
     }
 
     fn exhaustive_ryukyoku(&mut self) {
-        let mut deltas = [0; 4];
+        let deltas = [0; 4];
         self.can_renchan = self.player_states[self.oya as usize].shanten() == 0;
-
-        let mut has_nagashi_mangan = false;
-        self.can_nagashi_mangan
-            .iter()
-            .enumerate()
-            .filter(|&(_, &b)| b)
-            .map(|(i, _)| i)
-            .for_each(|i| {
-                has_nagashi_mangan = true;
-                if i as u8 == self.oya {
-                    let mut dod = [-4000; 4];
-                    dod[i] = 12000;
-                    vec_add_assign(&mut deltas, &dod);
-                } else {
-                    let mut dod = [-2000; 4];
-                    dod[i] = 8000;
-                    dod[self.oya as usize] = -4000;
-                    vec_add_assign(&mut deltas, &dod);
-                };
-            });
-
-        if !has_nagashi_mangan {
-            let tenpai_actors: ArrayVec<[_; 4]> = self
-                .player_states
-                .iter()
-                .enumerate()
-                .filter(|&(_, s)| s.shanten() == 0)
-                .map(|(i, _)| i)
-                .collect();
-
-            let (plus, minus) = match tenpai_actors.len() {
-                1 => (3000, -1000),
-                2 => (1500, -1500),
-                3 => (1000, -3000),
-                // 0 | 4
-                _ => (0, 0),
-            };
-            if plus > 0 {
-                let mut dod = [minus; 4];
-                tenpai_actors.into_iter().for_each(|i| dod[i] = plus);
-                vec_add_assign(&mut deltas, &dod);
-            }
-        }
 
         vec_add_assign(&mut self.kyoku_deltas, &deltas);
         let ryukyoku = Event::Ryukyoku {
