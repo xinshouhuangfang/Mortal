@@ -244,11 +244,9 @@ impl Invisible {
 
 const fn new_unknown_tiles() -> [u8; 37] {
     let mut ret = [4; 37];
-    ret[tuz!(5m)] = 3;
-    ret[tuz!(5p)] = 3;
-    ret[tuz!(5s)] = 3;
-    ret[tuz!(5mr)] = 1;
-    ret[tuz!(5pr)] = 1;
-    ret[tuz!(5sr)] = 1;
+    // 本地规则：无赤宝牌，5m/5p/5s 各 4 张普通牌，赤牌位（5mr/pr/sr）为 0。
+    ret[tuz!(5mr)] = 0;
+    ret[tuz!(5pr)] = 0;
+    ret[tuz!(5sr)] = 0;
     ret
 }
