@@ -37,13 +37,11 @@ pub struct Board {
 
     pub haipai: [[Tile; 13]; 4],
     /// Goes backward (pop)
+    ///
+    /// 本地规则：无宝牌（表宝/里宝）、无赤宝牌、无岭上自摸区。
+    /// 发牌时每人 13 张，剩余 84 张全部进入 `yama` 作为牌山，杠后也从
+    /// `yama` 末尾（pop）补牌，不再有独立的 rinshan / dora / ura 栈。
     pub yama: Vec<Tile>,
-    /// Goes backward (pop)
-    pub rinshan: Vec<Tile>,
-    /// Goes backward (pop)
-    pub dora_indicators: Vec<Tile>,
-    /// Goes forward (iter)
-    pub ura_indicators: Vec<Tile>,
 }
 
 #[derive(Derivative)]
@@ -59,13 +57,10 @@ pub struct BoardState {
     has_abortive_ryukyoku: bool,
     kyoku_deltas: [i32; 4],
 
-    #[derivative(Default(value = "70"))]
+    // 本地规则：牌山 84 张（136 总牌 - 52 手牌）。发牌触发条件见 `step()`。
+    #[derivative(Default(value = "84"))]
     tiles_left: u8,
     tsumo_actor: u8,
-    // Just a fancy bool
-    deal_from_rinshan: Option<()>,
-    need_new_dora_at_discard: Option<()>,
-    need_new_dora_at_tsumo: Option<()>,
     riichi_to_be_accepted: Option<u8>,
     #[derivative(Default(value = "[true; 4]"))]
     can_nagashi_mangan: [bool; 4],
@@ -78,9 +73,6 @@ pub struct BoardState {
     paos: [Option<u8>; 4],
 
     log: Vec<EventExt>,
-
-    // For oracle_obs only
-    dora_indicators_full: Vec<Tile>,
 }
 
 pub struct AgentContext<'a> {
@@ -109,27 +101,20 @@ impl Board {
 
         self.haipai = array::from_fn(|i| seq[i * 13..(i + 1) * 13].try_into().unwrap());
         let mut idx = 13 * 4;
-
-        self.rinshan = seq[idx..idx + 4].to_vec();
-        idx += 4;
-        self.dora_indicators = seq[idx..idx + 5].to_vec();
-        idx += 5;
-        self.ura_indicators = seq[idx..idx + 5].to_vec();
-        idx += 5;
-        self.yama = seq[idx..idx + 70].to_vec();
-        idx += 70;
+        // 本地规则：去掉 rinshan(4) / dora(5) / ura(5) 的分段，发完 52 张手牌后
+        // 剩余 84 张全部进入牌山 `yama`。
+        self.yama = seq[idx..].to_vec();
+        idx += self.yama.len();
         assert_eq!(idx, seq.len());
     }
 
     pub fn into_state(self) -> BoardState {
         let oya = self.kyoku % 4;
-        let dora_indicators_full = self.dora_indicators.clone();
 
         BoardState {
             board: self,
             oya,
             player_states: array::from_fn(|i| PlayerState::new(i as u8)),
-            dora_indicators_full,
             ..Default::default()
         }
     }
@@ -206,11 +191,9 @@ impl BoardState {
         let bakaze = must_tile!(tu8!(E) + self.board.kyoku / 4);
         let start_kyoku = Event::StartKyoku {
             bakaze,
-            dora_marker: self
-                .board
-                .dora_indicators
-                .pop()
-                .context("insufficient dora indicators")?,
+            // 本地规则：无宝牌，`StartKyoku` 的 `dora_marker` 字段（协议必填）
+            // 固定传 `1m`，不表示实际宝牌。
+            dora_marker: t!(1m),
             kyoku: self.oya + 1,
             honba: self.board.honba,
             kyotaku: self.board.kyotaku,
@@ -306,19 +289,6 @@ impl BoardState {
         }
     }
 
-    fn add_new_dora(&mut self) -> Result<()> {
-        let dora = self
-            .board
-            .dora_indicators
-            .pop()
-            .context("illegal kan: already 4 kans and this is the 5th")?;
-        let dora_ev = Event::Dora { dora_marker: dora };
-        self.broadcast(&dora_ev);
-        self.add_log_no_meta(dora_ev);
-
-        Ok(())
-    }
-
     fn handle_hora(
         &mut self,
         single_actor: u8,
@@ -332,10 +302,9 @@ impl BoardState {
         let mut kyotaku_point = self.board.kyotaku as i32 * 1000; // ditto
         self.board.kyotaku = 0; // Unlike honba, kyotaku in self will be cleared
 
-        // Let the states get their agari points provided with our ura
-        // indicators.
-        let ura_indicators =
-            self.board.ura_indicators[..5 - self.board.dora_indicators.len()].to_vec();
+        // 本地规则：无里宝牌，结算时始终传空 `ura_indicators`。由于
+        // `agari_points` 对外保留短路（宝牌番恒 0），此参数不影响算分。
+        let ura_indicators: Vec<Tile> = vec![];
         let points = reactions
             .iter()
             .map(|ev| match ev.event {
@@ -467,7 +436,8 @@ impl BoardState {
     }
 
     fn step(&mut self, reactions: &[EventExt; 4]) -> Result<Poll> {
-        if self.tiles_left == 70 {
+        // 本地规则：开局牌山 84 张，`tiles_left` 初始为 84 时首先发牌。
+        if self.tiles_left == 84 {
             self.haipai()?;
             return Ok(Poll::InGame);
         }
@@ -516,37 +486,22 @@ impl BoardState {
                 }
                 self.check_riichi_accepted();
 
-                let tile = if self.deal_from_rinshan.take().is_some() {
-                    self.board
-                        .rinshan
-                        .pop()
-                        .context("illegal kan: already 4 kans and this is the 5th")?
-                } else {
-                    self.board.yama.pop().with_context(|| {
-                        format!("tiles left > 0 ({}) but yama is empty", self.tiles_left)
-                    })?
-                };
+                // 本地规则：无岭上自摸区，摸牌（含杠后补牌）始终从牌山
+                // `yama` 末尾 pop。
+                let tile = self.board.yama.pop().with_context(|| {
+                    format!("tiles left > 0 ({}) but yama is empty", self.tiles_left)
+                })?;
                 self.tiles_left -= 1;
                 let tsumo = Event::Tsumo {
                     actor: self.tsumo_actor,
                     pai: tile,
                 };
 
-                // This is for Kakan only because chankan is possible until an
-                // actual tsumo.
-                if self.need_new_dora_at_tsumo.take().is_some() {
-                    self.add_new_dora()?;
-                }
-
                 self.broadcast(&tsumo);
                 self.add_log_no_meta(tsumo);
             }
 
             Event::Dahai { actor, pai, .. } => {
-                if self.need_new_dora_at_discard.take().is_some() {
-                    self.add_new_dora()?;
-                }
-
                 self.broadcast(&ev.event);
                 self.add_log(ev.clone());
                 self.tsumo_actor = (actor + 1) % 4;
@@ -570,38 +525,20 @@ impl BoardState {
             }
 
             Event::Ankan { actor, .. } => {
-                // For continuous kan
-                if self.need_new_dora_at_discard.take().is_some() {
-                    self.add_new_dora()?;
-                }
-
                 self.broadcast(&ev.event);
                 self.add_log(ev.clone());
-
-                // Immediately add new dora
-                self.add_new_dora()?;
-
                 self.tsumo_actor = actor;
-                self.deal_from_rinshan = Some(());
                 self.kans += 1;
             }
 
             Event::Daiminkan { actor, .. } | Event::Kakan { actor, .. } => {
-                // For Kakan only, do not `.take()` it.
-                if self.need_new_dora_at_discard.is_some() {
-                    self.need_new_dora_at_tsumo = Some(());
-                }
-
                 // For Daiminkan only
                 self.check_riichi_accepted();
 
                 self.broadcast(&ev.event);
                 self.add_log(ev.clone());
 
-                self.need_new_dora_at_discard = Some(());
-
                 self.tsumo_actor = actor;
-                self.deal_from_rinshan = Some(());
                 self.kans += 1;
             }
 
@@ -714,26 +651,6 @@ impl BoardState {
                 idx += 2;
             });
         idx += (69 - self.tiles_left as usize) * 2;
-
-        self.board.rinshan.iter().copied().rev().for_each(|tile| {
-            encode_tile(idx, tile);
-            idx += 2;
-        });
-        idx += (4 - self.board.rinshan.len()) * 2;
-
-        self.dora_indicators_full
-            .iter()
-            .copied()
-            .rev()
-            .for_each(|tile| {
-                encode_tile(idx, tile);
-                idx += 2;
-            });
-
-        self.board.ura_indicators.iter().copied().for_each(|tile| {
-            encode_tile(idx, tile);
-            idx += 2;
-        });
 
         assert_eq!(idx, shape.0);
         arr.build()

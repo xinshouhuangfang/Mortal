@@ -6,7 +6,7 @@ use crate::algo::shanten;
 use crate::mjai::Event;
 use crate::rankings::Rankings;
 use crate::tile::Tile;
-use crate::{must_tile, tu8, tuz};
+use crate::{must_tile, tu8};
 use std::cmp::Ordering;
 use std::{iter, mem};
 
@@ -110,7 +110,8 @@ impl PlayerState {
 
             Event::Kakan { actor, pai, .. } => self.kakan(actor, pai)?,
             Event::Ankan { actor, consumed } => self.ankan(actor, consumed)?,
-            Event::Dora { dora_marker } => self.add_dora_indicator(dora_marker)?,
+            // 本地规则：无宝牌，`Dora` 事件无实际意义，忽略。
+            Event::Dora { .. } => (),
 
             Event::Reach { actor } => self.reach(actor),
             Event::ReachAccepted { actor } => self.reach_accepted(actor),
@@ -125,7 +126,9 @@ impl PlayerState {
     fn start_kyoku(
         &mut self,
         bakaze: Tile,
-        dora_marker: Tile,
+        // 本地规则：无宝牌，忽略 `dora_marker`（协议字段，固定为 1m），
+        // 不再设置任何 dora 状态。
+        _dora_marker: Tile,
         kyoku: u8,
         honba: u8,
         kyotaku: u8,
@@ -183,7 +186,8 @@ impl PlayerState {
         self.kans_on_board = 0;
         self.tehai_len_div3 = 4;
         self.has_next_shanten_discard = false;
-        self.tiles_left = 70;
+        // 本地规则：牌山 84 张（与 `BoardState.tiles_left` 同步）。
+        self.tiles_left = 84;
         self.at_turn = 0;
 
         self.kawa.iter_mut().for_each(|k| k.clear());
@@ -204,7 +208,6 @@ impl PlayerState {
         // The updates must be in order and must be placed after all the
         // resets above.
         self.update_rank();
-        self.add_dora_indicator(dora_marker)?;
         for &t in &tehais[self.player_id as usize] {
             self.witness_tile(t)?;
             self.move_tile(t, MoveType::Tsumo)?;
@@ -367,9 +370,6 @@ impl PlayerState {
             for t in consumed {
                 self.witness_tile(t)?;
             }
-            for t in full_set {
-                self.update_doras_owned(actor_rel, t);
-            }
             self.can_w_riichi = false;
             self.at_ippatsu = false;
             return Ok(());
@@ -382,7 +382,6 @@ impl PlayerState {
         // `tsumogiri` to false in the Dahai after Chi
         self.last_self_tsumo = None;
 
-        self.update_doras_owned(0, pai);
         for t in consumed {
             self.move_tile(t, MoveType::FuuroConsume)?;
         }
@@ -436,9 +435,6 @@ impl PlayerState {
             for t in consumed {
                 self.witness_tile(t)?;
             }
-            for t in full_set {
-                self.update_doras_owned(actor_rel, t);
-            }
             self.can_w_riichi = false;
             self.at_ippatsu = false;
             return Ok(());
@@ -451,7 +447,6 @@ impl PlayerState {
         // `tsumogiri` to false in the Dahai after Pon
         self.last_self_tsumo = None;
 
-        self.update_doras_owned(0, pai);
         for t in consumed {
             self.move_tile(t, MoveType::FuuroConsume)?;
         }
@@ -481,19 +476,14 @@ impl PlayerState {
             for t in consumed {
                 self.witness_tile(t)?;
             }
-            for t in full_set {
-                self.update_doras_owned(actor_rel, t);
-            }
             self.can_w_riichi = false;
             self.at_ippatsu = false;
             return Ok(());
         }
 
-        self.at_rinshan = true;
         self.is_menzen = false;
         self.tehai_len_div3 -= 1;
 
-        self.update_doras_owned(0, pai);
         for t in consumed {
             self.move_tile(t, MoveType::FuuroConsume)?;
         }
@@ -522,7 +512,6 @@ impl PlayerState {
 
         if actor_rel != 0 {
             self.witness_tile(pai)?;
-            self.update_doras_owned(actor_rel, pai);
             self.last_kawa_tile = Some(pai); // for getting winning tile in self.agari
 
             // 槍槓
@@ -537,7 +526,6 @@ impl PlayerState {
             return Ok(());
         }
 
-        self.at_rinshan = true;
         self.move_tile(pai, MoveType::FuuroConsume)?;
         self.pons.retain(|&t| t != pai.deaka().as_u8());
         self.minkans.push(pai.deaka().as_u8());
@@ -568,12 +556,10 @@ impl PlayerState {
         if actor_rel != 0 {
             for t in consumed {
                 self.witness_tile(t)?;
-                self.update_doras_owned(actor_rel, t);
             }
             return Ok(());
         }
 
-        self.at_rinshan = true;
         self.tehai_len_div3 -= 1;
         for t in consumed {
             self.move_tile(t, MoveType::FuuroConsume)?;
@@ -634,22 +620,6 @@ impl PlayerState {
         );
         *seen += 1;
 
-        self.doras_seen += self.dora_factor[tile_id];
-        match tile.as_u8() {
-            tu8!(5mr) => {
-                self.akas_seen[0] = true;
-                self.doras_seen += 1;
-            }
-            tu8!(5pr) => {
-                self.akas_seen[1] = true;
-                self.doras_seen += 1;
-            }
-            tu8!(5sr) => {
-                self.akas_seen[2] = true;
-                self.doras_seen += 1;
-            }
-            _ => (),
-        }
         Ok(())
     }
 
@@ -664,7 +634,6 @@ impl PlayerState {
         match move_type {
             MoveType::Tsumo => {
                 *tehai_tile += 1;
-                self.doras_owned[0] += self.dora_factor[tile_id];
             }
             MoveType::Discard => {
                 ensure!(
@@ -672,7 +641,6 @@ impl PlayerState {
                     "rule violation: attempt to discard {tile} from void",
                 );
                 *tehai_tile -= 1;
-                self.doras_owned[0] -= self.dora_factor[tile_id];
             }
             MoveType::FuuroConsume => {
                 ensure!(
@@ -682,56 +650,6 @@ impl PlayerState {
                 *tehai_tile -= 1;
             }
         }
-
-        if tile.is_aka() {
-            let aka_id = tile.as_usize() - tuz!(5mr);
-            match move_type {
-                MoveType::Tsumo => {
-                    self.akas_in_hand[aka_id] = true;
-                    self.doras_owned[0] += 1;
-                }
-                MoveType::Discard => {
-                    self.akas_in_hand[aka_id] = false;
-                    self.doras_owned[0] -= 1;
-                }
-                MoveType::FuuroConsume => {
-                    self.akas_in_hand[aka_id] = false;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Updates `dora_indicators`, witness the dora indicator itself and
-    /// recounts doras (`doras_seen` and `doras_owned`) based on all the seen
-    /// tiles.
-    pub(super) fn add_dora_indicator(&mut self, tile: Tile) -> Result<()> {
-        self.dora_indicators.push(tile);
-
-        // Witness the tile so it can be added to `tiles_seen`, possibly also to
-        // `doras_seen`. This must be done before adding `dora_factor`.
-        self.witness_tile(tile)?;
-
-        let next = tile.next();
-        self.dora_factor[next.as_usize()] += 1;
-
-        // Count new dora in my tehai
-        self.doras_owned[0] += self.tehai[next.as_usize()];
-
-        // Count new dora in everyone's fuuro
-        for i in 0..4 {
-            self.doras_owned[i] += self.fuuro_overview[i]
-                .iter()
-                .flatten()
-                .filter(|t| t.deaka() == next)
-                .count() as u8;
-            if self.ankan_overview[i].contains(&next) {
-                self.doras_owned[i] += 4;
-            }
-        }
-
-        // Add `doras_seen` based on `tiles_seen`
-        self.doras_seen += self.tiles_seen[next.as_usize()];
         Ok(())
     }
 
@@ -833,13 +751,6 @@ impl PlayerState {
                 }
                 *is_wait = self.tiles_seen[t] < 4;
             }
-        }
-    }
-
-    pub(super) const fn update_doras_owned(&mut self, actor_rel: usize, tile: Tile) {
-        self.doras_owned[actor_rel] += self.dora_factor[tile.deaka().as_usize()];
-        if tile.is_aka() {
-            self.doras_owned[actor_rel] += 1;
         }
     }
 

@@ -56,15 +56,12 @@ impl Invisible {
                         };
                         board.init_from_seed(seed);
 
+                        // 本地规则：`Board` 已去掉 rinshan / dora / ura 栈，
+                        // 仅同步牌山 `yama`。其余（训练数据填充）暂缓处理。
                         cur.yama = board.yama;
-                        cur.rinshan = board.rinshan;
-                        cur.dora_indicators = board.dora_indicators;
-                        cur.ura_indicators = board.ura_indicators;
 
                         // reverse because of the way Board pops tiles
                         cur.yama.reverse();
-                        cur.rinshan.reverse();
-                        cur.dora_indicators.reverse();
 
                         ret.push(mem::take(&mut cur));
                         continue;
