@@ -380,6 +380,10 @@ impl PlayerState {
             "cannot agari"
         );
 
+        if true {
+            return Ok(Point::simple(1));
+        }
+
         // Here, 天和 and 地和 are handled individually as special cases, and
         // there is no multi yakuman for these two.
         if !is_ron && self.can_w_riichi {

@@ -128,7 +128,9 @@ impl SPCalculator<'_> {
         #[cfg(feature = "sp_reproduce_cpp_ver")]
         let candidates = static_expand!(17, 18);
         #[cfg(not(feature = "sp_reproduce_cpp_ver"))]
-        let candidates = static_expand!(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17);
+        let candidates = static_expand!(
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21
+        );
         Ok(candidates)
     }
 }

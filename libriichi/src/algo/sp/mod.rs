@@ -36,10 +36,11 @@ pub use tile::RequiredTile;
 
 #[cfg(feature = "sp_reproduce_cpp_ver")]
 pub const MAX_TSUMOS_LEFT: usize = 18;
-/// In practice, the max number of tsumos left should be 17, since the first
-/// tsumo of oya is mandatory.
+/// In practice, the max number of tsumos left is 21 (84-wall after the 52
+/// haipai tiles; the first tsumo of oya is mandatory, but we take 21 to be
+/// safe for the initial 84-wall).
 #[cfg(not(feature = "sp_reproduce_cpp_ver"))]
-pub const MAX_TSUMOS_LEFT: usize = 17;
+pub const MAX_TSUMOS_LEFT: usize = 21;
 
 #[cfg(feature = "sp_reproduce_cpp_ver")]
 const CALC_SHANTEN_FN: fn(&[u8; 34], u8) -> i8 = super::shanten::calc_normal;
