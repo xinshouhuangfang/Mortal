@@ -56,15 +56,12 @@ impl Invisible {
                         };
                         board.init_from_seed(seed);
 
+                        // 本地规则：`Board` 已去掉 rinshan / dora / ura 栈，
+                        // 仅同步牌山 `yama`。其余（训练数据填充）暂缓处理。
                         cur.yama = board.yama;
-                        cur.rinshan = board.rinshan;
-                        cur.dora_indicators = board.dora_indicators;
-                        cur.ura_indicators = board.ura_indicators;
 
                         // reverse because of the way Board pops tiles
                         cur.yama.reverse();
-                        cur.rinshan.reverse();
-                        cur.dora_indicators.reverse();
 
                         ret.push(mem::take(&mut cur));
                         continue;
@@ -247,11 +244,9 @@ impl Invisible {
 
 const fn new_unknown_tiles() -> [u8; 37] {
     let mut ret = [4; 37];
-    ret[tuz!(5m)] = 3;
-    ret[tuz!(5p)] = 3;
-    ret[tuz!(5s)] = 3;
-    ret[tuz!(5mr)] = 1;
-    ret[tuz!(5pr)] = 1;
-    ret[tuz!(5sr)] = 1;
+    // 本地规则：无赤宝牌，5m/5p/5s 各 4 张普通牌，赤牌位（5mr/pr/sr）为 0。
+    ret[tuz!(5mr)] = 0;
+    ret[tuz!(5pr)] = 0;
+    ret[tuz!(5sr)] = 0;
     ret
 }

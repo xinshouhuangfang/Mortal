@@ -17,6 +17,16 @@ const MJAI_PAI_STRINGS: [&str; MJAI_PAI_STRINGS_LEN] = [
     "5mr", "5pr", "5sr", // aka
     "?",   // unknown
 ];
+
+const MJAI_PAI_STRINGS2: [&str; MJAI_PAI_STRINGS_LEN] = [
+    "1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m", // m
+    "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", // p
+    "1s", "2s", "3s", "4s", "5s", "6s", "7s", "8s", "9s", // s
+    "1z", "2z", "3z", "4z", "5z", "6z", "7z", // z
+    "5mr", "5pr", "5sr", // aka
+    "?",   // unknown
+];
+
 const DISCARD_PRIORITIES: [u8; 38] = [
     6, 5, 4, 3, 2, 3, 4, 5, 6, // m
     6, 5, 4, 3, 2, 3, 4, 5, 6, // p
@@ -27,7 +37,7 @@ const DISCARD_PRIORITIES: [u8; 38] = [
 ];
 
 static MJAI_PAI_STRINGS_MAP: LazyLock<AHashMap<&'static str, Tile>> = LazyLock::new(|| {
-    MJAI_PAI_STRINGS
+    MJAI_PAI_STRINGS2
         .iter()
         .enumerate()
         .map(|(id, &s)| (s, Tile::try_from(id).unwrap()))

@@ -200,10 +200,6 @@ impl Agent for HumanAgent {
             has_actions = true;
             eprintln!("  <tile_name> / <number 0-36> 打牌");
         }
-        if cans.can_riichi {
-            has_actions = true;
-            eprintln!("  riichi");
-        }
         if cans.can_tsumo_agari {
             has_actions = true;
             eprintln!("  tsumo");
@@ -212,14 +208,10 @@ impl Agent for HumanAgent {
             has_actions = true;
             eprintln!("  ron");
         }
-        if cans.can_chi_low  { has_actions = true; eprintln!("  chi_l"); }
-        if cans.can_chi_mid  { has_actions = true; eprintln!("  chi_m"); }
-        if cans.can_chi_high { has_actions = true; eprintln!("  chi_h"); }
         if cans.can_pon        { has_actions = true; eprintln!("  pon"); }
         if cans.can_daiminkan  { has_actions = true; eprintln!("  daiminkan"); }
         if cans.can_kakan      { has_actions = true; eprintln!("  kakan"); }
         if cans.can_ankan      { has_actions = true; eprintln!("  ankan"); }
-        if cans.can_ryukyoku   { has_actions = true; eprintln!("  ryukyoku"); }
         if cans.can_pass()     { has_actions = true; eprintln!("  pass / none"); }
 
         if !has_actions {

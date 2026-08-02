@@ -279,7 +279,7 @@ impl<'a> ObsEncoderContext<'a> {
             }
         }
 
-        let v = state.tiles_left as f32 / 69.;
+        let v = state.tiles_left as f32 / 84.;
         self.arr.fill(self.idx, v);
         self.idx += 1;
 
@@ -290,7 +290,7 @@ impl<'a> ObsEncoderContext<'a> {
                 .encode(&mut self);
         }
 
-        let doras_unseen = state.dora_indicators.len() as u8 * 4 + 3 - state.doras_seen;
+        let doras_unseen = state.dora_indicators.len() as u8 * 4 - state.doras_seen;
         IntegerEncoder::new(doras_unseen as usize, 5 * 4 + 3)
             .rescale(true)
             .rbf_intervals(4)
@@ -659,6 +659,7 @@ impl<'a> ObsEncoderContext<'a> {
                     .tenpai_probs
                     .iter()
                     .take_while(|&&p| p > 0.)
+                    .take(MAX_NUM_TURNS)
                     .zip(&candidate.win_probs)
                     .zip(&candidate.exp_values)
                     .enumerate()
@@ -676,6 +677,7 @@ impl<'a> ObsEncoderContext<'a> {
                 .tenpai_probs
                 .iter()
                 .take_while(|&&p| p > 0.)
+                .take(MAX_NUM_TURNS)
                 .zip(&first.win_probs)
                 .zip(&first.exp_values)
                 .enumerate()
