@@ -12,4 +12,4 @@ __pycache__
 *.ipynb
 
 /_draft
-/logs
+logs_gz/
