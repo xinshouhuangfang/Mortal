@@ -1,3 +1,3 @@
 [build]
-rustflags = ["-C", "link-args=-lpython3.10"]
-rustdocflags = ["-C", "link-args=-lpython3.10"]
+rustflags = ["-C", "link-args=-L/root/miniconda3/lib", "-C", "link-args=-lpython3.12"]
+rustdocflags = ["-C", "link-args=-L/root/miniconda3/lib", "-C", "link-args=-lpython3.12"]
