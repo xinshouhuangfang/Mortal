@@ -118,8 +118,8 @@ enable_rule_based_agari_guard = true
 
 [1v3.champion]
 device = 'cuda:0'
-name = 'baseline'
-state_file = '/root/lichao/Mortal/mortal/baseline.pth'
+name = 'mortal'
+state_file = '/root/lichao/Mortal/mortal/mortal.pth'
 stochastic_latent = false
 enable_compile = false
 enable_amp = true
