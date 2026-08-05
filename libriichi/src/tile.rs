@@ -39,8 +39,16 @@ const DISCARD_PRIORITIES: [u8; 38] = [
 static MJAI_PAI_STRINGS_MAP: LazyLock<AHashMap<&'static str, Tile>> = LazyLock::new(|| {
     MJAI_PAI_STRINGS2
         .iter()
+        .chain(MJAI_PAI_STRINGS.iter())
         .enumerate()
-        .map(|(id, &s)| (s, Tile::try_from(id).unwrap()))
+        .map(|(id, &s)| {
+            let id = if id < MJAI_PAI_STRINGS2.len() {
+                id
+            } else {
+                id - MJAI_PAI_STRINGS2.len()
+            };
+            (s, Tile::try_from(id).unwrap())
+        })
         .collect()
 });
 
