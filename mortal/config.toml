@@ -14,7 +14,7 @@ enable_cudnn_benchmark = false
 enable_amp = false
 enable_compile = false
 
-batch_size = 512
+batch_size = 64
 opt_step_every = 1
 
 save_every = 40
