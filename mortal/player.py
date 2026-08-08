@@ -11,12 +11,17 @@ from libriichi.stat import Stat
 from libriichi.arena import OneVsThree
 from config import config
 
-class TestPlayer:
-    def __init__(self):
-        baseline_cfg = config['baseline']['test']
-        device = torch.device(baseline_cfg['device'])
-
-        state = torch.load(baseline_cfg['state_file'], weights_only=True, map_location=torch.device('cpu'))
+def load_baseline_engine(baseline_cfg, device):
+    state_file = baseline_cfg['state_file']
+    if not path.exists(state_file):
+        logging.warning(f'{state_file} not found, using random initialized baseline')
+        version = config['control'].get('version', 1)
+        conv_channels = config['resnet']['conv_channels']
+        num_blocks = config['resnet']['num_blocks']
+        stable_mortal = Brain(version=version, conv_channels=conv_channels, num_blocks=num_blocks).eval()
+        stable_dqn = DQN(version=version).eval()
+    else:
+        state = torch.load(state_file, weights_only=True, map_location=torch.device('cpu'))
         cfg = state['config']
         version = cfg['control'].get('version', 1)
         conv_channels = cfg['resnet']['conv_channels']
@@ -25,20 +30,28 @@ class TestPlayer:
         stable_dqn = DQN(version=version).eval()
         stable_mortal.load_state_dict(state['mortal'])
         stable_dqn.load_state_dict(state['current_dqn'])
-        if baseline_cfg['enable_compile']:
-            stable_mortal.compile()
-            stable_dqn.compile()
 
-        self.baseline_engine = MortalEngine(
-            stable_mortal,
-            stable_dqn,
-            is_oracle = False,
-            version = version,
-            device = device,
-            enable_amp = True,
-            enable_rule_based_agari_guard = True,
-            name = 'baseline',
-        )
+    if baseline_cfg['enable_compile']:
+        stable_mortal.compile()
+        stable_dqn.compile()
+
+    return MortalEngine(
+        stable_mortal,
+        stable_dqn,
+        is_oracle = False,
+        version = version,
+        device = device,
+        enable_amp = True,
+        enable_rule_based_agari_guard = True,
+        name = 'baseline',
+    )
+
+class TestPlayer:
+    def __init__(self):
+        baseline_cfg = config['baseline']['test']
+        device = torch.device(baseline_cfg['device'])
+
+        self.baseline_engine = load_baseline_engine(baseline_cfg, device)
         self.chal_version = config['control']['version']
         self.log_dir = path.abspath(config['test_play']['log_dir'])
 
@@ -77,29 +90,7 @@ class TrainPlayer:
         baseline_cfg = config['baseline']['train']
         device = torch.device(baseline_cfg['device'])
 
-        state = torch.load(baseline_cfg['state_file'], weights_only=True, map_location=torch.device('cpu'))
-        cfg = state['config']
-        version = cfg['control'].get('version', 1)
-        conv_channels = cfg['resnet']['conv_channels']
-        num_blocks = cfg['resnet']['num_blocks']
-        stable_mortal = Brain(version=version, conv_channels=conv_channels, num_blocks=num_blocks).eval()
-        stable_dqn = DQN(version=version).eval()
-        stable_mortal.load_state_dict(state['mortal'])
-        stable_dqn.load_state_dict(state['current_dqn'])
-        if baseline_cfg['enable_compile']:
-            stable_mortal.compile()
-            stable_dqn.compile()
-
-        self.baseline_engine = MortalEngine(
-            stable_mortal,
-            stable_dqn,
-            is_oracle = False,
-            version = version,
-            device = device,
-            enable_amp = True,
-            enable_rule_based_agari_guard = True,
-            name = 'baseline',
-        )
+        self.baseline_engine = load_baseline_engine(baseline_cfg, device)
 
         profile = os.environ.get('TRAIN_PLAY_PROFILE', 'default')
         logging.info(f'using profile {profile}')

@@ -507,38 +507,23 @@ impl BatchAgent for MortalBatchAgent {
                 };
 
                 if cans.can_daiminkan {
-                    let consumed = if tile.is_aka() {
-                        [tile.deaka(); 3]
-                    } else {
-                        [tile.akaize(), tile, tile]
-                    };
+                    let consumed = [tile.deaka(); 3];
                     Event::Daiminkan {
                         actor,
                         target: cans.target_actor,
-                        pai: tile,
+                        pai: tile.deaka(),
                         consumed,
                     }
                 } else if cans.can_ankan && ankan_candidates.contains(&tile.deaka()) {
                     Event::Ankan {
                         actor,
-                        consumed: [tile.akaize(), tile, tile, tile],
+                        consumed: [tile.deaka(); 4],
                     }
                 } else {
-                    let can_akaize_target = match tile.as_u8() {
-                        tu8!(5m) => akas_in_hand[0],
-                        tu8!(5p) => akas_in_hand[1],
-                        tu8!(5s) => akas_in_hand[2],
-                        _ => false,
-                    };
-                    let (pai, consumed) = if can_akaize_target {
-                        (tile.akaize(), [tile.deaka(); 3])
-                    } else {
-                        (tile.deaka(), [tile.akaize(), tile.deaka(), tile.deaka()])
-                    };
                     Event::Kakan {
                         actor,
-                        pai,
-                        consumed,
+                        pai: tile.deaka(),
+                        consumed: [tile.deaka(); 3],
                     }
                 }
             }
