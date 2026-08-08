@@ -5,11 +5,11 @@
 version = 4
 online = false
 
-state_file = '/root/lichao/Mortal/mortal/mortal.pth'
-best_state_file = '/root/lichao/Mortal/mortal/best.pth'
-tensorboard_dir = '/root/lichao/Mortal/mortal/tensorboard'
+state_file = 'mortal.pth'
+best_state_file = 'best.pth'
+tensorboard_dir = 'tensorboard'
 
-device = 'cuda:0'
+device = 'cpu'
 enable_cudnn_benchmark = false
 enable_amp = false
 enable_compile = false
@@ -24,7 +24,7 @@ submit_every = 400
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
 games = 800
-log_dir = '/root/lichao/Mortal/mortal/train_play_logs'
+log_dir = 'train_play_logs'
 boltzmann_epsilon = 0.005
 boltzmann_temp = 0.05
 top_p = 1.0
@@ -32,15 +32,15 @@ repeats = 1
 
 [test_play]
 games = 800
-log_dir = '/root/lichao/Mortal/mortal/test_play_logs'
+log_dir = 'test_play_logs'
 
 [dataset]
-globs = ['/root/lichao/Mortal/logs/**/*.json.gz']
-file_index = '/root/lichao/Mortal/mortal/file_index.pth'
+globs = ['logs/**/*.json.gz']
+file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
 num_workers = 1
-player_names_files = ['/root/lichao/Mortal/mortal/player_names.txt']
+player_names_files = ['player_names.txt']
 num_epochs = 20
 enable_augmentation = false
 augmented_first = false
@@ -76,14 +76,14 @@ warm_up_steps = 0
 max_steps = 0
 
 [baseline.train]
-device = 'cuda:0'
+device = 'cpu'
 enable_compile = false
-state_file = '/root/lichao/Mortal/mortal/baseline.pth'
+state_file = 'baseline.pth'
 
 [baseline.test]
-device = 'cuda:0'
+device = 'cpu'
 enable_compile = false
-state_file = '/root/lichao/Mortal/mortal/baseline.pth'
+state_file = 'baseline.pth'
 
 [online]
 history_window = 50
@@ -105,21 +105,21 @@ force_sequential = false
 seed_key = -1
 games_per_iter = 4
 iters = 1
-log_dir = '/root/lichao/Mortal/mortal/1v3_logs'
+log_dir = '1v3_logs'
 
 [1v3.challenger]
-device = 'cuda:0'
+device = 'cpu'
 name = 'mortal'
-state_file = '/root/lichao/Mortal/mortal/mortal.pth'
+state_file = 'mortal.pth'
 stochastic_latent = false
 enable_compile = false
 enable_amp = true
 enable_rule_based_agari_guard = true
 
 [1v3.champion]
-device = 'cuda:0'
+device = 'cpu'
 name = 'mortal'
-state_file = '/root/lichao/Mortal/mortal/mortal.pth'
+state_file = 'mortal.pth'
 stochastic_latent = false
 enable_compile = false
 enable_amp = true
@@ -131,14 +131,14 @@ dir = '/path/to/akochan'
 tactics = '/path/to/tactics.json'
 
 [grp]
-state_file = '/root/lichao/Mortal/mortal/grp.pth'
+state_file = 'grp.pth'
 
 [grp.network]
 hidden_size = 64
 num_layers = 2
 
 [grp.control]
-device = 'cuda:0'
+device = 'cpu'
 enable_cudnn_benchmark = false
 tensorboard_dir = 'grp_v2/log'
 
@@ -159,7 +159,7 @@ val_globs = [
     '/path/to/dataset/2021/11/**/*.json.gz',
     # ...
 ]
-file_index = '/path/to/grp_file_index.pth'
+file_index = 'grp_file_index.pth'
 file_batch_size = 50
 
 [grp.optim]
