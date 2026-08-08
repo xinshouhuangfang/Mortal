@@ -50,8 +50,10 @@ gamma = 1
 pts = [6.0, 4.0, 2.0, 0.0]
 
 [resnet]
-conv_channels = 192
-num_blocks = 40
+# conv_channels = 192
+# num_blocks = 40
+conv_channels = 12
+num_blocks = 4
 
 [cql]
 min_q_weight = 5
@@ -87,7 +89,7 @@ state_file = 'baseline.pth'
 
 [1v3]
 seed_key = -1
-games_per_iter = 4
+games_per_iter = 64
 iters = 1
 log_dir = '1v3_logs'
 
