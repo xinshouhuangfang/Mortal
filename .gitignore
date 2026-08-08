@@ -14,3 +14,4 @@ __pycache__
 /_draft
 logs_gz/
 tensorboard/
+sample_dump.txt

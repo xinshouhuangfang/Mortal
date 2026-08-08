@@ -35,7 +35,7 @@ games = 800
 log_dir = 'test_play_logs'
 
 [dataset]
-globs = ['logs/**/*.json.gz']
+globs = ['../logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
@@ -85,22 +85,6 @@ device = 'cpu'
 enable_compile = false
 state_file = 'baseline.pth'
 
-[online]
-history_window = 50
-enable_compile = false
-
-[online.remote]
-host = '127.0.0.1'
-port = 5000
-
-[online.server]
-buffer_dir = '/path/to/buffer'
-drain_dir = '/path/to/drain'
-sample_reuse_rate = 0
-sample_reuse_threshold = 0
-capacity = 1600
-force_sequential = false
-
 [1v3]
 seed_key = -1
 games_per_iter = 4
@@ -124,43 +108,3 @@ stochastic_latent = false
 enable_compile = false
 enable_amp = true
 enable_rule_based_agari_guard = true
-
-[1v3.akochan]
-enabled = false
-dir = '/path/to/akochan'
-tactics = '/path/to/tactics.json'
-
-[grp]
-state_file = 'grp.pth'
-
-[grp.network]
-hidden_size = 64
-num_layers = 2
-
-[grp.control]
-device = 'cpu'
-enable_cudnn_benchmark = false
-tensorboard_dir = 'grp_v2/log'
-
-batch_size = 512
-save_every = 2000
-val_steps = 400
-
-[grp.dataset]
-train_globs = [
-    '/path/to/dataset/2019/**/*.json.gz',
-    '/path/to/dataset/2020/**/*.json.gz',
-    '/path/to/dataset/2021/01/**/*.json.gz',
-    '/path/to/dataset/2021/02/**/*.json.gz',
-    # ...
-]
-val_globs = [
-    '/path/to/dataset/2021/10/**/*.json.gz',
-    '/path/to/dataset/2021/11/**/*.json.gz',
-    # ...
-]
-file_index = 'grp_file_index.pth'
-file_batch_size = 50
-
-[grp.optim]
-lr = 1e-5

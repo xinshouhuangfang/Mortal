@@ -42,7 +42,6 @@ def train():
     enable_amp = config['control']['enable_amp']
     enable_compile = config['control']['enable_compile']
 
-    pts = config['env']['pts']
     gamma = config['env']['gamma']
     file_batch_size = config['dataset']['file_batch_size']
     reserve_ratio = config['dataset']['reserve_ratio']
@@ -171,7 +170,6 @@ def train():
         file_data = FileDatasetsIter(
             version = version,
             file_list = file_list,
-            pts = pts,
             file_batch_size = file_batch_size,
             reserve_ratio = reserve_ratio,
             player_names = player_names,
