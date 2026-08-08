@@ -1,18 +1,16 @@
+import os
+import atexit
 import random
-import torch
 import numpy as np
+import torch
 from torch.utils.data import IterableDataset
-from model import GRP
-from reward_calculator import RewardCalculator
 from libriichi.dataset import GameplayLoader
-from config import config
 
 class FileDatasetsIter(IterableDataset):
     def __init__(
         self,
         version,
         file_list,
-        pts,
         oracle = False,
         file_batch_size = 20, # hint: around 660 instances per file
         reserve_ratio = 0,
@@ -25,7 +23,6 @@ class FileDatasetsIter(IterableDataset):
         super().__init__()
         self.version = version
         self.file_list = file_list
-        self.pts = pts
         self.oracle = oracle
         self.file_batch_size = file_batch_size
         self.reserve_ratio = reserve_ratio
@@ -36,13 +33,30 @@ class FileDatasetsIter(IterableDataset):
         self.augmented_first = augmented_first
         self.iterator = None
 
-    def build_iter(self):
-        # do not put it in __init__, it won't work on Windows
-        self.grp = GRP(**config['grp']['network'])
-        grp_state = torch.load(config['grp']['state_file'], weights_only=True, map_location=torch.device('cpu'))
-        self.grp.load_state_dict(grp_state['model'])
-        self.reward_calc = RewardCalculator(self.grp, self.pts)
+        # dump each fed sample to a file for debugging; path from
+        # env MORTAL_SAMPLE_DUMP, defaults to ./sample_dump.txt
+        dump_path = os.environ.get('MORTAL_SAMPLE_DUMP', 'sample_dump.txt')
+        self._dump_f = open(dump_path, 'w', encoding='utf-8')
+        atexit.register(self._dump_f.close)
 
+    def _dump_sample(self, tag, game_idx, i, obs, actions, masks, steps_to_done, kyoku_rewards, player_ranks):
+        ob = obs[i]
+        ob_flat = ob.ravel()
+        nonzero = np.flatnonzero(ob_flat)
+        samples = ob_flat[nonzero[:10]]
+        self._dump_f.write(
+            'file={tag} game={game_idx} step={i} obs_shape={shape} dtype={dtype} '
+            'obs_nz_count={nz} obs_sample={samples} '
+            'action={a} legal={legal} steps_to_done={sd} kyoku_reward={kr} player_rank={pr}\n'.format(
+                tag=tag, game_idx=game_idx, i=i, shape=ob.shape, dtype=ob.dtype,
+                nz=len(nonzero), samples=samples.tolist() if len(samples) else [],
+                a=actions[i], legal=masks[i].tolist(), sd=steps_to_done[i],
+                kr=kyoku_rewards, pr=player_ranks,
+            )
+        )
+        self._dump_f.flush()
+
+    def build_iter(self):
         for _ in range(self.num_epochs):
             yield from self.load_files(self.augmented_first)
             if self.enable_augmentation:
@@ -79,6 +93,8 @@ class FileDatasetsIter(IterableDataset):
 
     def populate_buffer(self, file_list):
         data = self.loader.load_gz_log_files(file_list)
+        tag = os.path.basename(file_list[0]) if file_list else 'unknown'
+        game_idx = 0
         for file in data:
             for game in file:
                 # per move
@@ -87,25 +103,17 @@ class FileDatasetsIter(IterableDataset):
                     invisible_obs = game.take_invisible_obs()
                 actions = game.take_actions()
                 masks = game.take_masks()
-                at_kyoku = game.take_at_kyoku()
+                _ = game.take_at_kyoku()
                 dones = game.take_dones()
                 apply_gamma = game.take_apply_gamma()
 
                 # per game
-                grp = game.take_grp()
-                player_id = game.take_player_id()
+                _ = game.take_player_id()
 
                 game_size = len(obs)
 
-                grp_feature = grp.take_feature()
-                rank_by_player = grp.take_rank_by_player()
-                kyoku_rewards = self.reward_calc.calc_delta_pt(player_id, grp_feature, rank_by_player)
-                assert len(kyoku_rewards) >= at_kyoku[-1] + 1 # usually they are equal, unless there is no action in the last kyoku
-
-                final_scores = grp.take_final_scores()
-                scores_seq = np.concatenate((grp_feature[:, 3:] * 1e4, [final_scores]))
-                rank_by_player_seq = (-scores_seq).argsort(-1, kind='stable').argsort(-1, kind='stable')
-                player_ranks = rank_by_player_seq[:, player_id]
+                kyoku_rewards = 1.0
+                player_ranks = 0
 
                 steps_to_done = np.zeros(game_size, dtype=np.int64)
                 for i in reversed(range(game_size)):
@@ -113,17 +121,22 @@ class FileDatasetsIter(IterableDataset):
                         steps_to_done[i] = steps_to_done[i + 1] + int(apply_gamma[i])
 
                 for i in range(game_size):
+                    self._dump_sample(
+                        tag, game_idx, i, obs, actions, masks,
+                        steps_to_done, kyoku_rewards, player_ranks,
+                    )
                     entry = [
                         obs[i],
                         actions[i],
                         masks[i],
                         steps_to_done[i],
-                        kyoku_rewards[at_kyoku[i]],
-                        player_ranks[at_kyoku[i] + 1],
+                        kyoku_rewards,
+                        player_ranks,
                     ]
                     if self.oracle:
                         entry.insert(1, invisible_obs[i])
                     self.buffer.append(entry)
+                game_idx += 1
 
     def __iter__(self):
         if self.iterator is None:
