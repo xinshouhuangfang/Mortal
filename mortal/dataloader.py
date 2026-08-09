@@ -112,8 +112,8 @@ class FileDatasetsIter(IterableDataset):
 
                 game_size = len(obs)
 
-                kyoku_rewards = 1.0
-                player_ranks = 0
+                kyoku_rewards = 6.0
+                player_ranks = 1
 
                 steps_to_done = np.zeros(game_size, dtype=np.int64)
                 for i in reversed(range(game_size)):
