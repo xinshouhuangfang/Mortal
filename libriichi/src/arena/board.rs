@@ -5,7 +5,7 @@ use crate::mjai::{Event, EventExt};
 use crate::state::PlayerState;
 use crate::tile::Tile;
 use crate::vec_ops::vec_add_assign;
-use crate::{matches_tu8, must_tile, t, tu8};
+use crate::{must_tile, t, tu8};
 use std::convert::TryInto;
 use std::{array, mem};
 
@@ -61,13 +61,6 @@ pub struct BoardState {
     #[derivative(Default(value = "84"))]
     tiles_left: u8,
     tsumo_actor: u8,
-    riichi_to_be_accepted: Option<u8>,
-    #[derivative(Default(value = "[true; 4]"))]
-    can_nagashi_mangan: [bool; 4],
-    #[derivative(Default(value = "true"))]
-    can_four_wind: bool,
-    four_wind_tile: Option<Tile>,
-    accepted_riichis: u8,
     kans: u8,
     check_four_kan: bool,
     paos: [Option<u8>; 4],
@@ -232,63 +225,6 @@ impl BoardState {
         // no need to broadcast
     }
 
-    const fn update_nagashi_mangan_and_four_wind(&mut self, ev: &Event) {
-        match *ev {
-            Event::Dahai { actor, pai, .. } if !pai.is_yaokyuu() => {
-                self.can_nagashi_mangan[actor as usize] = false;
-            }
-            Event::Chi { target, .. }
-            | Event::Pon { target, .. }
-            | Event::Daiminkan { target, .. } => {
-                self.can_nagashi_mangan[target as usize] = false;
-                self.can_four_wind = false;
-            }
-            Event::Ankan { .. } => {
-                self.can_four_wind = false;
-            }
-            _ => (),
-        };
-    }
-
-    fn check_four_wind(&mut self, pai: Tile) -> Result<bool> {
-        if !matches_tu8!(pai.as_u8(), E | S | W | N) {
-            self.can_four_wind = false;
-        } else if self.player_states[self.tsumo_actor as usize].can_w_riichi() {
-            if let Some(tile) = self.four_wind_tile {
-                // compare if the tile is equal to the first
-                // wind
-                self.can_four_wind = tile == pai;
-            } else {
-                // the very first discard and it is a wind,
-                // record the wind
-                self.four_wind_tile = Some(pai);
-            }
-        } else if let Some(tile) = self.four_wind_tile {
-            // check if the first jun is just over and the last
-            // discarded wind is still the same as the previous
-            if tile == pai {
-                return Ok(true);
-            }
-            // do not bother checking it again
-            self.can_four_wind = false;
-        } else {
-            bail!("unexpected state when calculating 四風連打");
-        }
-
-        Ok(false)
-    }
-
-    fn check_riichi_accepted(&mut self) {
-        if let Some(actor) = self.riichi_to_be_accepted.take() {
-            let riichi_accepted = Event::ReachAccepted { actor };
-            self.broadcast(&riichi_accepted);
-            self.add_log_no_meta(riichi_accepted);
-            self.board.scores[actor as usize] -= 1000;
-            self.board.kyotaku += 1;
-            self.accepted_riichis += 1;
-        }
-    }
-
     fn handle_hora(
         &mut self,
         single_actor: u8,
@@ -397,34 +333,6 @@ impl BoardState {
         Ok(())
     }
 
-    fn update_paos(&mut self, ev: &Event) {
-        match *ev {
-            Event::Pon {
-                target, actor, pai, ..
-            }
-            | Event::Daiminkan {
-                target, actor, pai, ..
-            } if pai.is_jihai() => {
-                let mut jihais = 0_u8;
-                self.player_states[actor as usize]
-                    .pons()
-                    .iter()
-                    .chain(self.player_states[actor as usize].minkans())
-                    .copied()
-                    .filter(|&t| t >= tu8!(E))
-                    .for_each(|t| jihais |= 1 << (t - tu8!(E)));
-                let daisanein_confirmed = (jihais & 0b1110000) == 0b1110000;
-                let daisuushi_confirmed = (jihais & 0b0001111) == 0b0001111;
-                if daisanein_confirmed && matches_tu8!(pai.as_u8(), P | F | C)
-                    || daisuushi_confirmed && matches_tu8!(pai.as_u8(), E | S | W | N)
-                {
-                    self.paos[actor as usize] = Some(target);
-                }
-            }
-            _ => (),
-        }
-    }
-
     #[inline]
     fn abortive_ryukyoku(&mut self) {
         let ryukyoku = Event::Ryukyoku {
@@ -440,12 +348,6 @@ impl BoardState {
         if self.tiles_left == 84 {
             self.haipai()?;
             return Ok(Poll::InGame);
-        }
-
-        if self.accepted_riichis == 4 {
-            // 四家立直
-            self.abortive_ryukyoku();
-            return Ok(Poll::End);
         }
 
         // Validate reactions
@@ -476,16 +378,12 @@ impl BoardState {
             return Ok(Poll::End);
         }
 
-        self.update_nagashi_mangan_and_four_wind(&ev.event);
-
         match ev.event {
             Event::None => {
                 if self.tiles_left == 0 {
                     self.exhaustive_ryukyoku();
                     return Ok(Poll::End);
                 }
-                self.check_riichi_accepted();
-
                 // 本地规则：无岭上自摸区，摸牌（含杠后补牌）始终从牌山
                 // `yama` 末尾 pop。
                 let tile = self.board.yama.pop().with_context(|| {
@@ -501,27 +399,10 @@ impl BoardState {
                 self.add_log_no_meta(tsumo);
             }
 
-            Event::Dahai { actor, pai, .. } => {
+            Event::Dahai { actor, pai:_, .. } => {
                 self.broadcast(&ev.event);
                 self.add_log(ev.clone());
                 self.tsumo_actor = (actor + 1) % 4;
-
-                // 四風連打
-                if self.can_four_wind && self.check_four_wind(pai)? {
-                    self.abortive_ryukyoku();
-                    return Ok(Poll::End);
-                }
-
-                if self.kans == 4 && self.player_states.iter().all(|s| s.kans_count() < 4) {
-                    // 四槓散了
-                    self.check_four_kan = true;
-                }
-            }
-
-            Event::Chi { .. } | Event::Pon { .. } => {
-                self.check_riichi_accepted();
-                self.broadcast(&ev.event);
-                self.add_log(ev.clone());
             }
 
             Event::Ankan { actor, .. } => {
@@ -532,9 +413,6 @@ impl BoardState {
             }
 
             Event::Daiminkan { actor, .. } | Event::Kakan { actor, .. } => {
-                // For Daiminkan only
-                self.check_riichi_accepted();
-
                 self.broadcast(&ev.event);
                 self.add_log(ev.clone());
 
@@ -542,20 +420,8 @@ impl BoardState {
                 self.kans += 1;
             }
 
-            Event::Reach { actor } => {
-                self.broadcast(&ev.event);
-                self.add_log(ev.clone());
-                self.riichi_to_be_accepted = Some(actor);
-            }
-
             Event::Hora { actor, target, .. } => {
                 self.handle_hora(actor, target, reactions)?;
-                return Ok(Poll::End);
-            }
-
-            Event::Ryukyoku { .. } => {
-                // 九種九牌
-                self.abortive_ryukyoku();
                 return Ok(Poll::End);
             }
 
@@ -563,11 +429,6 @@ impl BoardState {
                 bail!("unexpected event: {:?}", ev.event);
             }
         };
-
-        // The pao check cannot be done before the current event (Pon or
-        // Daiminkan) gets processed because it requires to read `.pons()` and
-        // `.minkans()`.
-        self.update_paos(&ev.event);
 
         Ok(Poll::InGame)
     }

@@ -74,12 +74,9 @@ impl ActionCandidate {
     #[must_use]
     pub const fn can_act(&self) -> bool {
         self.can_discard
-            || self.can_chi()
             || self.can_pon
             || self.can_kan()
-            || self.can_riichi
             || self.can_agari()
-            || self.can_ryukyoku
     }
 
     fn __repr__(&self) -> String {
@@ -93,10 +90,6 @@ impl PlayerState {
         let cans = self.last_cans;
 
         match action {
-            Event::Ryukyoku { .. } => {
-                ensure!(cans.can_ryukyoku, "cannot ryukyoku");
-                return Ok(());
-            }
             Event::None => {
                 return Ok(());
             }
@@ -124,19 +117,6 @@ impl PlayerState {
                         bail!("tsumogiri but the player has not dealt any tile yet");
                     }
                 }
-            }
-
-            Event::Reach { .. } => {
-                ensure!(false, "cannot riichi");
-            }
-
-            Event::Chi {
-                actor:_,
-                target:_,
-                pai:_,
-                consumed:_,
-            } => {
-                ensure!(false, "cannot chi");
             }
 
             Event::Pon {
