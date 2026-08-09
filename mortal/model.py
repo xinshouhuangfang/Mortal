@@ -185,15 +185,6 @@ class Brain(nn.Module):
         self._freeze_bn = value
         return self.train(self.training)
 
-class AuxNet(nn.Module):
-    def __init__(self, dims=None):
-        super().__init__()
-        self.dims = dims
-        self.net = nn.Linear(1024, sum(dims), bias=False)
-
-    def forward(self, x):
-        return self.net(x).split(self.dims, dim=-1)
-
 class DQN(nn.Module):
     def __init__(self, *, version=1):
         super().__init__()

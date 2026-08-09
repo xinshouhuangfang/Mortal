@@ -21,7 +21,7 @@ def train():
     from player import TestPlayer
     from dataloader import FileDatasetsIter, worker_init_fn
     from lr_scheduler import LinearWarmUpCosineAnnealingLR
-    from model import Brain, DQN, AuxNet
+    from model import Brain, DQN
     from libriichi.consts import obs_shape
     from config import config
 
@@ -33,7 +33,6 @@ def train():
     test_every = config['control']['test_every']
     test_games = config['test_play']['games']
     min_q_weight = config['cql']['min_q_weight']
-    next_rank_weight = config['aux']['next_rank_weight']
     assert save_every % opt_step_every == 0
     assert test_every % save_every == 0
 
@@ -56,8 +55,7 @@ def train():
 
     mortal = Brain(version=version, **config['resnet']).to(device)
     dqn = DQN(version=version).to(device)
-    aux_net = AuxNet((4,)).to(device)
-    all_models = (mortal, dqn, aux_net)
+    all_models = (mortal, dqn)
     if enable_compile:
         for m in all_models:
             m.compile()
@@ -66,7 +64,6 @@ def train():
     logging.info(f'obs shape: {obs_shape(version)}')
     logging.info(f'mortal params: {parameter_count(mortal):,}')
     logging.info(f'dqn params: {parameter_count(dqn):,}')
-    logging.info(f'aux params: {parameter_count(aux_net):,}')
 
     mortal.freeze_bn(config['freeze_bn']['mortal'])
 
@@ -104,7 +101,6 @@ def train():
         logging.info(f'loaded: {timestamp}')
         mortal.load_state_dict(state['mortal'])
         dqn.load_state_dict(state['current_dqn'])
-        aux_net.load_state_dict(state['aux_net'])
         optimizer.load_state_dict(state['optimizer'])
         scheduler.load_state_dict(state['scheduler'])
         scaler.load_state_dict(state['scaler'])
@@ -113,7 +109,6 @@ def train():
 
     optimizer.zero_grad(set_to_none=True)
     mse = nn.MSELoss()
-    ce = nn.CrossEntropyLoss()
 
     if device.type == 'cuda':
         logging.info(f'device: {device} ({torch.cuda.get_device_name(device)})')
@@ -124,7 +119,6 @@ def train():
     stats = {
         'dqn_loss': 0,
         'cql_loss': 0,
-        'next_rank_loss': 0,
     }
     all_q = torch.zeros((save_every, batch_size), device=device, dtype=torch.float32)
     all_q_target = torch.zeros((save_every, batch_size), device=device, dtype=torch.float32)
@@ -191,11 +185,10 @@ def train():
         remaining_masks = []
         remaining_steps_to_done = []
         remaining_kyoku_rewards = []
-        remaining_player_ranks = []
         remaining_bs = 0
         pb = tqdm(total=save_every, desc='TRAIN', initial=steps % save_every)
 
-        def train_batch(obs, actions, masks, steps_to_done, kyoku_rewards, player_ranks):
+        def train_batch(obs, actions, masks, steps_to_done, kyoku_rewards):
             nonlocal steps
             nonlocal idx
             nonlocal pb
@@ -205,7 +198,6 @@ def train():
             masks = masks.to(dtype=torch.bool, device=device)
             steps_to_done = steps_to_done.to(dtype=torch.int64, device=device)
             kyoku_rewards = kyoku_rewards.to(dtype=torch.float64, device=device)
-            player_ranks = player_ranks.to(dtype=torch.int64, device=device)
             assert masks[range(batch_size), actions].all()
 
             q_target_mc = gamma ** steps_to_done * kyoku_rewards
@@ -218,20 +210,15 @@ def train():
                 dqn_loss = 0.5 * mse(q, q_target_mc)
                 cql_loss = q_out.logsumexp(-1).mean() - q.mean()
 
-                next_rank_logits, = aux_net(phi)
-                next_rank_loss = ce(next_rank_logits, player_ranks)
-
                 loss = sum((
                     dqn_loss,
                     cql_loss * min_q_weight,
-                    next_rank_loss * next_rank_weight,
                 ))
             scaler.scale(loss / opt_step_every).backward()
 
             with torch.inference_mode():
                 stats['dqn_loss'] += dqn_loss
                 stats['cql_loss'] += cql_loss
-                stats['next_rank_loss'] += next_rank_loss
                 all_q[idx] = q
                 all_q_target[idx] = q_target_mc
 
@@ -257,7 +244,6 @@ def train():
 
                 writer.add_scalar('loss/dqn_loss', stats['dqn_loss'] / save_every, steps)
                 writer.add_scalar('loss/cql_loss', stats['cql_loss'] / save_every, steps)
-                writer.add_scalar('loss/next_rank_loss', stats['next_rank_loss'] / save_every, steps)
                 writer.add_scalar('hparam/lr', scheduler.get_last_lr()[0], steps)
                 writer.add_histogram('q_predicted', all_q_1d, steps)
                 writer.add_histogram('q_target', all_q_target_1d, steps)
@@ -273,7 +259,6 @@ def train():
                 state = {
                     'mortal': mortal.state_dict(),
                     'current_dqn': dqn.state_dict(),
-                    'aux_net': aux_net.state_dict(),
                     'optimizer': optimizer.state_dict(),
                     'scheduler': scheduler.state_dict(),
                     'scaler': scaler.state_dict(),
@@ -351,7 +336,7 @@ def train():
                         shutil.copy(state_file, best_state_file)
                 pb = tqdm(total=save_every, desc='TRAIN')
 
-        for obs, actions, masks, steps_to_done, kyoku_rewards, player_ranks in data_loader:
+        for obs, actions, masks, steps_to_done, kyoku_rewards in data_loader:
             bs = obs.shape[0]
             if bs != batch_size:
                 remaining_obs.append(obs)
@@ -359,10 +344,9 @@ def train():
                 remaining_masks.append(masks)
                 remaining_steps_to_done.append(steps_to_done)
                 remaining_kyoku_rewards.append(kyoku_rewards)
-                remaining_player_ranks.append(player_ranks)
                 remaining_bs += bs
                 continue
-            train_batch(obs, actions, masks, steps_to_done, kyoku_rewards, player_ranks)
+            train_batch(obs, actions, masks, steps_to_done, kyoku_rewards)
 
         remaining_batches = remaining_bs // batch_size
         if remaining_batches > 0:
@@ -371,7 +355,6 @@ def train():
             masks = torch.cat(remaining_masks, dim=0)
             steps_to_done = torch.cat(remaining_steps_to_done, dim=0)
             kyoku_rewards = torch.cat(remaining_kyoku_rewards, dim=0)
-            player_ranks = torch.cat(remaining_player_ranks, dim=0)
             start = 0
             end = batch_size
             while end <= remaining_bs:
@@ -381,7 +364,6 @@ def train():
                     masks[start:end],
                     steps_to_done[start:end],
                     kyoku_rewards[start:end],
-                    player_ranks[start:end],
                 )
                 start = end
                 end += batch_size

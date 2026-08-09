@@ -39,7 +39,7 @@ class FileDatasetsIter(IterableDataset):
         self._dump_f = open(dump_path, 'w', encoding='utf-8')
         atexit.register(self._dump_f.close)
 
-    def _dump_sample(self, tag, game_idx, i, obs, actions, masks, steps_to_done, kyoku_rewards, player_ranks):
+    def _dump_sample(self, tag, game_idx, i, obs, actions, masks, steps_to_done, kyoku_rewards):
         ob = obs[i]
         ob_flat = ob.ravel()
         nonzero = np.flatnonzero(ob_flat)
@@ -47,11 +47,11 @@ class FileDatasetsIter(IterableDataset):
         self._dump_f.write(
             'file={tag} game={game_idx} step={i} obs_shape={shape} dtype={dtype} '
             'obs_nz_count={nz} obs_sample={samples} '
-            'action={a} legal={legal} steps_to_done={sd} kyoku_reward={kr} player_rank={pr}\n'.format(
+            'action={a} legal={legal} steps_to_done={sd} kyoku_reward={kr}\n'.format(
                 tag=tag, game_idx=game_idx, i=i, shape=ob.shape, dtype=ob.dtype,
                 nz=len(nonzero), samples=samples.tolist() if len(samples) else [],
                 a=actions[i], legal=masks[i].tolist(), sd=steps_to_done[i],
-                kr=kyoku_rewards, pr=player_ranks,
+                kr=kyoku_rewards,
             )
         )
         self._dump_f.flush()
@@ -113,7 +113,6 @@ class FileDatasetsIter(IterableDataset):
                 game_size = len(obs)
 
                 kyoku_rewards = 6.0
-                player_ranks = 1
 
                 steps_to_done = np.zeros(game_size, dtype=np.int64)
                 for i in reversed(range(game_size)):
@@ -123,7 +122,7 @@ class FileDatasetsIter(IterableDataset):
                 for i in range(game_size):
                     self._dump_sample(
                         tag, game_idx, i, obs, actions, masks,
-                        steps_to_done, kyoku_rewards, player_ranks,
+                        steps_to_done, kyoku_rewards,
                     )
                     entry = [
                         obs[i],
@@ -131,7 +130,6 @@ class FileDatasetsIter(IterableDataset):
                         masks[i],
                         steps_to_done[i],
                         kyoku_rewards,
-                        player_ranks,
                     ]
                     if self.oracle:
                         entry.insert(1, invisible_obs[i])
