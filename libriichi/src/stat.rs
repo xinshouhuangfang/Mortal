@@ -318,7 +318,7 @@ impl Stat {
                 }
             }
 
-            Event::ReachAccepted { actor } => {
+            Event::ReachAccepted { .. } => {
             }
 
             Event::Hora {

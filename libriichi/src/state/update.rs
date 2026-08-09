@@ -588,7 +588,7 @@ impl PlayerState {
         }
     }
 
-    fn reach_accepted(&mut self, actor: u8) {
+    fn reach_accepted(&mut self, _actor: u8) {
         self.update_rank();
     }
 
