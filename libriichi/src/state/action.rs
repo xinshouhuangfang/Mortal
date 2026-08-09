@@ -1,5 +1,4 @@
 use super::PlayerState;
-use crate::chi_type::ChiType;
 use crate::mjai::Event;
 use crate::tile::Tile;
 use crate::tuz;
@@ -128,28 +127,18 @@ impl PlayerState {
             }
 
             Event::Reach { .. } => {
-                ensure!(cans.can_riichi, "cannot riichi");
+                ensure!(false, "cannot riichi");
             }
 
             Event::Chi {
-                actor,
-                target,
-                pai,
-                consumed,
+                actor:_,
+                target:_,
+                pai:_,
+                consumed:_,
             } => {
-                ensure!((target + 1) % 4 == actor, "chi from non-kamicha");
-                ensure!(
-                    matches!(self.last_kawa_tile, Some(tile) if tile == pai),
-                    "chi target is not the last kawa tile",
-                );
-                self.ensure_tiles_in_hand(&consumed)?;
-
-                match ChiType::new(consumed, pai) {
-                    ChiType::Low => ensure!(cans.can_chi_low, "cannot chi low"),
-                    ChiType::Mid => ensure!(cans.can_chi_mid, "cannot chi mid"),
-                    ChiType::High => ensure!(cans.can_chi_high, "cannot chi high"),
-                }
+                ensure!(false, "cannot chi");
             }
+
             Event::Pon {
                 actor,
                 target,
@@ -198,7 +187,7 @@ impl PlayerState {
                 if target == self.player_id {
                     ensure!(cans.can_tsumo_agari, "cannot tsumo agari");
                 } else {
-                    ensure!(cans.can_ron_agari, "cannot ron agari");
+                    ensure!(false, "cannot ron agari");
                 }
             }
 
