@@ -1,7 +1,6 @@
 use super::PlayerState;
 use super::action::ActionCandidate;
 use super::item::{ChiPon, KawaItem, Sutehai};
-use crate::algo::agari::{self};
 use crate::algo::shanten;
 use crate::mjai::Event;
 use crate::rankings::Rankings;
@@ -87,13 +86,6 @@ impl PlayerState {
                 tsumogiri,
             } => self.dahai(actor, pai, tsumogiri)?,
 
-            Event::Chi {
-                actor,
-                pai,
-                consumed,
-                ..
-            } => self.chi(actor, pai, consumed)?,
-
             Event::Pon {
                 actor,
                 target,
@@ -110,12 +102,6 @@ impl PlayerState {
 
             Event::Kakan { actor, pai, .. } => self.kakan(actor, pai)?,
             Event::Ankan { actor, consumed } => self.ankan(actor, consumed)?,
-            // 本地规则：无宝牌，`Dora` 事件无实际意义，忽略。
-            Event::Dora { .. } => (),
-
-            Event::Reach { actor } => self.reach(actor),
-            Event::ReachAccepted { actor } => self.reach_accepted(actor),
-
             _ => (),
         };
 
@@ -249,19 +235,7 @@ impl PlayerState {
             return Ok(());
         }
 
-        if self.riichi_accepted[0] {
-            if self.kans_on_board < 4 {
-                // Using Tenhou rule here.
-                self.last_cans.can_ankan =
-                    agari::check_ankan_after_riichi(&self.tehai, self.tehai_len_div3, pai, false);
-                if self.last_cans.can_ankan {
-                    self.ankan_candidates.push(pai.deaka());
-                }
-            }
-            return Ok(());
-        }
-
-        if self.kans_on_board < 4 {
+        if true {
             self.tehai
                 .iter()
                 .enumerate()
@@ -278,10 +252,7 @@ impl PlayerState {
                 });
         }
 
-        self.last_cans.can_riichi = self.is_menzen
-            && self.tiles_left >= 4
-            && self.scores[0] >= 1000
-            && (self.shanten == 0 || self.shanten == 1 && self.has_next_shanten_discard);
+        self.last_cans.can_riichi = false;
 
         Ok(())
     }
@@ -294,10 +265,10 @@ impl PlayerState {
             self.witness_tile(pai)?;
         }
 
-        let is_riichi = self.riichi_declared[actor_rel] && !self.riichi_accepted[actor_rel];
+        let is_riichi = false;
         let sutehai = Sutehai {
             tile: pai,
-            is_dora: self.dora_factor[pai.deaka().as_usize()] > 0,
+            is_dora: false,
             is_tedashi: !tsumogiri,
             is_riichi,
         };
@@ -313,9 +284,6 @@ impl PlayerState {
         if !tsumogiri {
             self.last_tedashis[actor_rel] = Some(sutehai);
         }
-        if is_riichi {
-            self.riichi_sutehais[actor_rel] = Some(sutehai);
-        }
 
         if actor_rel == 0 {
             self.forbidden_tiles.fill(false);
@@ -327,7 +295,7 @@ impl PlayerState {
             // Furiten state will be permanent once riichi is accepted,
             // and of course, the shanten number will be frozen as well,
             // so the calculations are skipped here.
-            if !self.riichi_accepted[0] {
+            if true {
                 if self.next_shanten_discards[pai.deaka().as_usize()] {
                     self.shanten -= 1;
                 } else if !self.keep_shanten_discards[pai.deaka().as_usize()] {
@@ -338,9 +306,6 @@ impl PlayerState {
                 // discarded `pai` might be a winning tile (tsumo agari
                 // minogashi) thus furiten status needs to update.
                 self.update_waits_and_furiten();
-            } else if !self.at_furiten && self.waits[pai.deaka().as_usize()] {
-                // Riichi furiten
-                self.at_furiten = true;
             }
 
             return Ok(());
@@ -353,70 +318,6 @@ impl PlayerState {
         self.last_cans.can_pon = self.tehai[pai.deaka().as_usize()] >= 2;
         self.last_cans.can_daiminkan =
             self.kans_on_board < 4 && self.tehai[pai.deaka().as_usize()] == 3;
-
-        Ok(())
-    }
-
-    fn chi(&mut self, actor: u8, pai: Tile, consumed: [Tile; 2]) -> Result<()> {
-        let actor_rel = self.rel(actor);
-        let full_set = consumed.into_iter().chain(iter::once(pai)).collect();
-        self.fuuro_overview[actor_rel].push(full_set);
-        self.intermediate_chi_pon = Some(ChiPon {
-            consumed,
-            target_tile: pai,
-        });
-
-        if actor_rel != 0 {
-            for t in consumed {
-                self.witness_tile(t)?;
-            }
-            self.can_w_riichi = false;
-            self.at_ippatsu = false;
-            return Ok(());
-        }
-
-        self.last_cans.can_discard = true;
-        self.is_menzen = false;
-        self.tehai_len_div3 -= 1;
-        // Marked explicitly as `None` to let `Agent` impls set
-        // `tsumogiri` to false in the Dahai after Chi
-        self.last_self_tsumo = None;
-
-        for t in consumed {
-            self.move_tile(t, MoveType::FuuroConsume)?;
-        }
-
-        let a = consumed[0].deaka().as_usize();
-        let b = consumed[1].deaka().as_usize();
-        let min = a.min(b);
-        let max = a.max(b);
-        let deaka_tile_id = pai.deaka().as_usize();
-        self.chis.push(min.min(deaka_tile_id) as u8);
-
-        // Forbid 喰い替え
-        if self.tehai[deaka_tile_id] > 0 {
-            self.forbidden_tiles[deaka_tile_id] = true;
-        }
-        if deaka_tile_id < min {
-            if max % 9 < 8 {
-                // Like 56s chi 4s, then 7s is not allowed to discard
-                let bigger = max + 1;
-                if self.tehai[bigger] > 0 {
-                    self.forbidden_tiles[bigger] = true;
-                }
-            }
-        } else if deaka_tile_id > max && !min.is_multiple_of(9) {
-            // Like 56s chi 7s, then 4s is not allowed to discard
-            let smaller = min - 1;
-            if self.tehai[smaller] > 0 {
-                self.forbidden_tiles[smaller] = true;
-            }
-        }
-
-        // NOTES: this is 3n+2
-        // The shanten can change after chi, for example 1235578 chi 4.
-        self.update_shanten();
-        self.update_shanten_discards();
 
         Ok(())
     }
@@ -574,22 +475,6 @@ impl PlayerState {
         }
 
         Ok(())
-    }
-
-    const fn reach(&mut self, actor: u8) {
-        let actor_rel = self.rel(actor);
-        self.riichi_declared[actor_rel] = true;
-        if actor_rel == 0 {
-            // `self.is_w_riichi` should not be set at ReachAccepted as
-            // `self.can_w_riichi` will be set to `false` right after
-            // the Dahai.
-            self.is_w_riichi = self.can_w_riichi;
-            self.last_cans.can_discard = true;
-        }
-    }
-
-    fn reach_accepted(&mut self, _actor: u8) {
-        self.update_rank();
     }
 
     pub(super) const fn rel(&self, actor: u8) -> usize {

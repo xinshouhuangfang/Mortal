@@ -17,7 +17,7 @@ batch_size = 64
 opt_step_every = 1
 
 save_every = 40
-test_every = 80
+test_every = 1600
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
@@ -29,7 +29,7 @@ top_p = 1.0
 repeats = 1
 
 [test_play]
-games = 64
+games = 32
 log_dir = 'test_play_logs'
 
 [dataset]
@@ -55,9 +55,6 @@ num_blocks = 40
 
 [cql]
 min_q_weight = 5
-
-[aux]
-next_rank_weight = 0.2
 
 [freeze_bn]
 mortal = false
