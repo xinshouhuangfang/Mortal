@@ -31,7 +31,7 @@ top_p = 1.0
 repeats = 1
 
 [test_play]
-games = 800
+games = 64
 log_dir = 'test_play_logs'
 
 [dataset]
@@ -50,10 +50,10 @@ gamma = 1
 pts = [6.0, 4.0, 2.0, 0.0]
 
 [resnet]
-# conv_channels = 192
-# num_blocks = 40
-conv_channels = 12
-num_blocks = 4
+conv_channels = 192
+num_blocks = 40
+# conv_channels = 12
+# num_blocks = 4
 
 [cql]
 min_q_weight = 5

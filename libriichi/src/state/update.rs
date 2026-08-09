@@ -589,14 +589,7 @@ impl PlayerState {
     }
 
     fn reach_accepted(&mut self, actor: u8) {
-        let actor_rel = self.rel(actor);
-        self.riichi_accepted[actor_rel] = true;
-        self.scores[actor_rel] -= 1000;
-        self.kyotaku += 1;
         self.update_rank();
-        if actor_rel == 0 {
-            self.at_ippatsu = true;
-        }
     }
 
     pub(super) const fn rel(&self, actor: u8) -> usize {

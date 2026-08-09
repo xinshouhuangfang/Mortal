@@ -319,10 +319,6 @@ impl Stat {
             }
 
             Event::ReachAccepted { actor } => {
-                cur_scores[actor as usize] -= 1000;
-                if actor == player_id {
-                    riichi_accepted = true;
-                }
             }
 
             Event::Hora {
@@ -388,20 +384,6 @@ impl Stat {
             Event::Ryukyoku { deltas } => {
                 let deltas = deltas.expect("deltas is required for analyzing");
                 vec_add_assign(&mut cur_scores, &deltas);
-
-                let point = deltas[player_id as usize] as i64;
-                stat.ryukyoku += 1;
-                stat.ryukyoku_point += point;
-                if riichi_accepted {
-                    stat.riichi_ryukyoku += 1;
-                    stat.riichi_point += point - 1000;
-                } else if fuuro_num > 0 {
-                    stat.fuuro_point += point;
-                }
-
-                if point >= 8000 {
-                    stat.nagashi_mangan += 1;
-                }
             }
 
             Event::EndKyoku => {
