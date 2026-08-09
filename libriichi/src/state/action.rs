@@ -1,5 +1,4 @@
 use super::PlayerState;
-use crate::chi_type::ChiType;
 use crate::mjai::Event;
 use crate::tile::Tile;
 use crate::tuz;
@@ -75,12 +74,9 @@ impl ActionCandidate {
     #[must_use]
     pub const fn can_act(&self) -> bool {
         self.can_discard
-            || self.can_chi()
             || self.can_pon
             || self.can_kan()
-            || self.can_riichi
             || self.can_agari()
-            || self.can_ryukyoku
     }
 
     fn __repr__(&self) -> String {
@@ -94,10 +90,6 @@ impl PlayerState {
         let cans = self.last_cans;
 
         match action {
-            Event::Ryukyoku { .. } => {
-                ensure!(cans.can_ryukyoku, "cannot ryukyoku");
-                return Ok(());
-            }
             Event::None => {
                 return Ok(());
             }
@@ -127,29 +119,6 @@ impl PlayerState {
                 }
             }
 
-            Event::Reach { .. } => {
-                ensure!(cans.can_riichi, "cannot riichi");
-            }
-
-            Event::Chi {
-                actor,
-                target,
-                pai,
-                consumed,
-            } => {
-                ensure!((target + 1) % 4 == actor, "chi from non-kamicha");
-                ensure!(
-                    matches!(self.last_kawa_tile, Some(tile) if tile == pai),
-                    "chi target is not the last kawa tile",
-                );
-                self.ensure_tiles_in_hand(&consumed)?;
-
-                match ChiType::new(consumed, pai) {
-                    ChiType::Low => ensure!(cans.can_chi_low, "cannot chi low"),
-                    ChiType::Mid => ensure!(cans.can_chi_mid, "cannot chi mid"),
-                    ChiType::High => ensure!(cans.can_chi_high, "cannot chi high"),
-                }
-            }
             Event::Pon {
                 actor,
                 target,
@@ -198,7 +167,7 @@ impl PlayerState {
                 if target == self.player_id {
                     ensure!(cans.can_tsumo_agari, "cannot tsumo agari");
                 } else {
-                    ensure!(cans.can_ron_agari, "cannot ron agari");
+                    ensure!(false, "cannot ron agari");
                 }
             }
 

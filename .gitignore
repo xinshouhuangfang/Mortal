@@ -16,3 +16,4 @@ logs_gz/
 tensorboard/
 sample_dump.txt
 *.json.gz
+1v3_logs/

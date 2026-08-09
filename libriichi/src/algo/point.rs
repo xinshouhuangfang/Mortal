@@ -103,12 +103,8 @@ impl Point {
 
     #[inline]
     #[must_use]
-    pub const fn tsumo_total(self, is_oya: bool) -> i32 {
-        if is_oya {
-            self.tsumo_ko * 3
-        } else {
-            self.tsumo_ko * 2 + self.tsumo_oya
-        }
+    pub const fn tsumo_total(self, _is_oya: bool) -> i32 {
+        self.tsumo_ko * 3
     }
 
     #[inline]
