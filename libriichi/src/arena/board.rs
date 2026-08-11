@@ -405,6 +405,11 @@ impl BoardState {
                 self.tsumo_actor = (actor + 1) % 4;
             }
 
+            Event::Pon { .. } => {
+                self.broadcast(&ev.event);
+                self.add_log(ev.clone());
+            }
+
             Event::Ankan { actor, .. } => {
                 self.broadcast(&ev.event);
                 self.add_log(ev.clone());
