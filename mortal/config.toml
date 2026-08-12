@@ -5,7 +5,7 @@
 version = 4
 
 state_file = 'mortal.pth'
-best_state_file = 'best.pth'
+best_state_file = 'baseline.pth'
 tensorboard_dir = 'tensorboard'
 
 device = 'cpu'
@@ -17,7 +17,8 @@ batch_size = 64
 opt_step_every = 1
 
 save_every = 40
-test_every = 1600
+test_every = 40
+log_every = 40
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
@@ -50,8 +51,6 @@ pts = [6.0, 4.0, 2.0, 0.0]
 [resnet]
 conv_channels = 192
 num_blocks = 40
-# conv_channels = 12
-# num_blocks = 4
 
 [cql]
 min_q_weight = 5
@@ -83,7 +82,7 @@ state_file = 'baseline.pth'
 
 [1v3]
 seed_key = -1
-games_per_iter = 32 
+games_per_iter = 32
 iters = 1
 log_dir = '1v3_logs'
 

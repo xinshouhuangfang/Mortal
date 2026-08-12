@@ -76,13 +76,13 @@ pub struct PlayerState {
     ///
     /// Reference:
     /// <https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q1020002370>
-    pub(super) kawa: [TinyVec<[Option<KawaItem>; 24]>; 4],
+    pub(super) kawa: [TinyVec<[Option<KawaItem>; 32]>; 4],
     pub(super) last_tedashis: [Option<Sutehai>; 4],
     pub(super) riichi_sutehais: [Option<Sutehai>; 4],
 
-    /// Using 34-D arrays here may be more efficient, but I don't want to mess up
-    /// with aka doras.
-    pub(super) kawa_overview: [ArrayVec<[Tile; 24]>; 4],
+    /// 本地规则：牌山 84 张（无死牌墙），理论最大摸牌数约 21 张/人，且
+    /// 每杠额外补 1 张（最多 4 杠），故牌河上限取 32 以容纳极端情况。
+    pub(super) kawa_overview: [ArrayVec<[Tile; 32]>; 4],
     pub(super) fuuro_overview: [ArrayVec<[ArrayVec<[Tile; 4]>; 4]>; 4],
     /// In this field all `Tile` are deaka'd.
     pub(super) ankan_overview: [ArrayVec<[Tile; 4]>; 4],

@@ -31,10 +31,12 @@ def train():
     opt_step_every = config['control']['opt_step_every']
     save_every = config['control']['save_every']
     test_every = config['control']['test_every']
+    log_every = config['control']['log_every']
     test_games = config['test_play']['games']
     min_q_weight = config['cql']['min_q_weight']
     assert save_every % opt_step_every == 0
     assert test_every % save_every == 0
+    assert save_every % log_every == 0
 
     device = torch.device(config['control']['device'])
     torch.backends.cudnn.benchmark = config['control']['enable_cudnn_benchmark']
@@ -187,11 +189,15 @@ def train():
         remaining_kyoku_rewards = []
         remaining_bs = 0
         pb = tqdm(total=save_every, desc='TRAIN', initial=steps % save_every)
+        log_dqn_loss = 0
+        log_cql_loss = 0
 
         def train_batch(obs, actions, masks, steps_to_done, kyoku_rewards):
             nonlocal steps
             nonlocal idx
             nonlocal pb
+            nonlocal log_dqn_loss
+            nonlocal log_cql_loss
 
             obs = obs.to(dtype=torch.float32, device=device)
             actions = actions.to(dtype=torch.int64, device=device)
@@ -219,6 +225,8 @@ def train():
             with torch.inference_mode():
                 stats['dqn_loss'] += dqn_loss
                 stats['cql_loss'] += cql_loss
+                log_dqn_loss += dqn_loss.item()
+                log_cql_loss += cql_loss.item()
                 all_q[idx] = q
                 all_q_target[idx] = q_target_mc
 
@@ -234,6 +242,16 @@ def train():
                 optimizer.zero_grad(set_to_none=True)
             scheduler.step()
             pb.update(1)
+
+            if steps % log_every == 0:
+                logging.info(
+                    f'step: {steps:,} | '
+                    f'dqn_loss: {log_dqn_loss / log_every:.6f} | '
+                    f'cql_loss: {log_cql_loss / log_every:.6f} | '
+                    f'lr: {scheduler.get_last_lr()[0]:.3e}'
+                )
+                log_dqn_loss = 0
+                log_cql_loss = 0
 
             if steps % save_every == 0:
                 pb.close()
@@ -275,11 +293,11 @@ def train():
                     dqn.train()
 
                     avg_pt = stat.avg_pt([90, 45, 0, -135]) # for display only, never used in training
-                    better = avg_pt >= best_perf['avg_pt'] and stat.avg_rank <= best_perf['avg_rank']
+                    better = avg_pt >= best_perf['avg_pt']
                     if better:
                         past_best = best_perf.copy()
                         best_perf['avg_pt'] = avg_pt
-                        best_perf['avg_rank'] = stat.avg_rank
+                        best_perf['avg_rank'] = 0.0
 
                     logging.info(f'avg rank: {stat.avg_rank:.6}')
                     logging.info(f'avg pt: {avg_pt:.6}')
