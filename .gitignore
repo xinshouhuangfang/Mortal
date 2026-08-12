@@ -6,7 +6,6 @@ __pycache__
 *.dll
 *.exe
 *.so
-*.pth
 
 .ipynb_checkpoints
 *.ipynb
