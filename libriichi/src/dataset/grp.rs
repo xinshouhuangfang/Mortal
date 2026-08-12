@@ -103,11 +103,6 @@ impl Grp {
                         vec_add_assign(&mut final_deltas, &ds);
                     }
                 }
-                Event::ReachAccepted { actor } => {
-                    if rank_by_player_opt.is_none() {
-                        final_deltas[actor as usize] -= 1000;
-                    }
-                }
                 Event::StartKyoku {
                     bakaze,
                     kyoku,
