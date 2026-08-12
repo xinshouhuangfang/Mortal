@@ -5,10 +5,10 @@
 version = 4
 
 state_file = 'mortal.pth'
-best_state_file = 'best.pth'
+best_state_file = 'baseline.pth'
 tensorboard_dir = 'tensorboard'
 
-device = 'cpu'
+device = 'cuda:0'
 enable_cudnn_benchmark = false
 enable_amp = false
 enable_compile = false
@@ -17,7 +17,8 @@ batch_size = 64
 opt_step_every = 1
 
 save_every = 40
-test_every = 1600
+test_every = 40
+log_every = 40
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
@@ -50,8 +51,6 @@ pts = [6.0, 4.0, 2.0, 0.0]
 [resnet]
 conv_channels = 192
 num_blocks = 40
-# conv_channels = 12
-# num_blocks = 4
 
 [cql]
 min_q_weight = 5
@@ -72,23 +71,23 @@ warm_up_steps = 0
 max_steps = 0
 
 [baseline.train]
-device = 'cpu'
+device = 'cuda:0'
 enable_compile = false
 state_file = 'baseline.pth'
 
 [baseline.test]
-device = 'cpu'
+device = 'cuda:0'
 enable_compile = false
 state_file = 'baseline.pth'
 
 [1v3]
 seed_key = -1
-games_per_iter = 32 
+games_per_iter = 32
 iters = 1
 log_dir = '1v3_logs'
 
 [1v3.challenger]
-device = 'cpu'
+device = 'cuda:0'
 name = 'mortal'
 state_file = 'mortal.pth'
 stochastic_latent = false
@@ -97,7 +96,7 @@ enable_amp = true
 enable_rule_based_agari_guard = true
 
 [1v3.champion]
-device = 'cpu'
+device = 'cuda:0'
 name = 'mortal'
 state_file = 'mortal.pth'
 stochastic_latent = false
