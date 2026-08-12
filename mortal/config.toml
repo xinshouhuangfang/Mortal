@@ -8,7 +8,7 @@ state_file = 'mortal.pth'
 best_state_file = 'baseline.pth'
 tensorboard_dir = 'tensorboard'
 
-device = 'cpu'
+device = 'cuda:0'
 enable_cudnn_benchmark = false
 enable_amp = false
 enable_compile = false
@@ -71,12 +71,12 @@ warm_up_steps = 0
 max_steps = 0
 
 [baseline.train]
-device = 'cpu'
+device = 'cuda:0'
 enable_compile = false
 state_file = 'baseline.pth'
 
 [baseline.test]
-device = 'cpu'
+device = 'cuda:0'
 enable_compile = false
 state_file = 'baseline.pth'
 
@@ -87,7 +87,7 @@ iters = 1
 log_dir = '1v3_logs'
 
 [1v3.challenger]
-device = 'cpu'
+device = 'cuda:0'
 name = 'mortal'
 state_file = 'mortal.pth'
 stochastic_latent = false
@@ -96,7 +96,7 @@ enable_amp = true
 enable_rule_based_agari_guard = true
 
 [1v3.champion]
-device = 'cpu'
+device = 'cuda:0'
 name = 'mortal'
 state_file = 'mortal.pth'
 stochastic_latent = false
