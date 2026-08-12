@@ -1,7 +1,5 @@
-use crate::algo::point::Point;
 use crate::mjai::Event;
 use crate::py_helper::add_submodule;
-use crate::rankings::Rankings;
 use crate::vec_ops::vec_add_assign;
 use std::fmt;
 use std::fs::File;
@@ -267,118 +265,20 @@ impl Stat {
         };
 
         let mut cur_scores = [0; 4];
-        let mut riichi_declared = false;
-        let mut riichi_accepted = false;
-        let mut others_riichi_declared = false;
-        let mut cur_oya = 0;
-        let mut jun = 0;
-        let mut fuuro_num = 0;
         events.iter().for_each(|ev| match *ev {
-            Event::StartKyoku { oya, scores, .. } => {
+            Event::StartKyoku { oya:_, scores, .. } => {
                 stat.round += 1;
                 cur_scores = scores;
-                riichi_declared = false;
-                riichi_accepted = false;
-                others_riichi_declared = false;
-                cur_oya = oya;
-                if cur_oya == player_id {
-                    stat.oya += 1;
-                }
-                jun = 0;
-                fuuro_num = 0;
-            }
-
-            Event::Dahai { actor, .. } if actor == player_id => {
-                jun += 1;
-            }
-
-            Event::Chi { actor, .. }
-            | Event::Pon { actor, .. }
-            | Event::Daiminkan { actor, .. }
-                if actor == player_id =>
-            {
-                fuuro_num += 1;
-            }
-
-            Event::Reach { actor } => {
-                if actor == player_id {
-                    riichi_declared = true;
-                    stat.riichi += 1;
-                    stat.riichi_jun += jun;
-                    if cur_oya == player_id {
-                        stat.riichi_as_oya += 1;
-                    }
-                    if others_riichi_declared {
-                        stat.chasing_riichi += 1;
-                    }
-                } else if riichi_declared {
-                    stat.riichi_got_chased += 1;
-                } else {
-                    others_riichi_declared = true;
-                }
-            }
-
-            Event::ReachAccepted { .. } => {
             }
 
             Event::Hora {
-                actor,
-                target,
+                actor:_,
+                target:_,
                 deltas,
                 ..
             } => {
                 let deltas = deltas.expect("deltas is required for analyzing");
                 vec_add_assign(&mut cur_scores, &deltas);
-
-                if actor == player_id {
-                    let point = deltas[player_id as usize] as i64 - riichi_accepted as i64 * 1000;
-                    stat.agari += 1;
-                    stat.agari_jun += jun;
-                    if cur_oya == player_id {
-                        stat.agari_as_oya += 1;
-                        stat.agari_point_oya += point;
-                    } else {
-                        stat.agari_point_ko += point;
-                    }
-
-                    if riichi_accepted {
-                        stat.riichi_agari += 1;
-                        stat.riichi_agari_jun += jun;
-                        stat.riichi_agari_point += point;
-                        stat.riichi_point += point;
-                    } else if fuuro_num > 0 {
-                        stat.fuuro_agari += 1;
-                        stat.fuuro_agari_jun += jun;
-                        stat.fuuro_agari_point += point;
-                        stat.fuuro_point += point;
-                    } else {
-                        stat.dama_agari += 1;
-                        stat.dama_agari_jun += jun;
-                        stat.dama_agari_point += point;
-                    }
-
-                    if point >= Point::yakuman(cur_oya == player_id, 1).ron as i64 {
-                        stat.yakuman += 1;
-                    }
-                } else if target == player_id {
-                    let point = deltas[player_id as usize] as i64;
-                    stat.houjuu += 1;
-                    stat.houjuu_jun += jun;
-                    if cur_oya == actor {
-                        stat.houjuu_to_oya += 1;
-                        stat.houjuu_point_to_oya += point;
-                    } else {
-                        stat.houjuu_point_to_ko += point;
-                    }
-
-                    if riichi_declared {
-                        stat.riichi_houjuu += 1;
-                        stat.riichi_point += point;
-                    } else if fuuro_num > 0 {
-                        stat.fuuro_houjuu += 1;
-                        stat.fuuro_point += point;
-                    }
-                }
             }
 
             Event::Ryukyoku { deltas } => {
@@ -386,38 +286,13 @@ impl Stat {
                 vec_add_assign(&mut cur_scores, &deltas);
             }
 
-            Event::EndKyoku => {
-                if fuuro_num > 0 {
-                    stat.fuuro += 1;
-                    stat.fuuro_num += fuuro_num;
-                }
-            }
-
             _ => (),
         });
-
-        let rk = Rankings::new(cur_scores);
-
-        // assume the sum of scores to be 100k
-        let sum: i32 = cur_scores.iter().sum();
-        if sum < 100_000 {
-            cur_scores[rk.player_by_rank[0] as usize] += 100_000 - sum;
-        }
 
         // assume the starting point to be 25000
         let final_score = cur_scores[player_id as usize];
         stat.point = final_score as i64 - 25000;
-        if final_score < 0 {
-            stat.tobi = 1;
-        }
-
-        let rank = rk.rank_by_player[player_id as usize];
-        match rank {
-            0 => stat.rank_1 = 1,
-            1 => stat.rank_2 = 1,
-            2 => stat.rank_3 = 1,
-            _ => stat.rank_4 = 1,
-        }
+        stat.point = stat.point / 1000;
 
         stat
     }
@@ -490,8 +365,8 @@ impl Stat {
 
     #[inline]
     #[must_use]
-    pub const fn total_pt(&self, pts: [i64; 4]) -> i64 {
-        self.rank_1 * pts[0] + self.rank_2 * pts[1] + self.rank_3 * pts[2] + self.rank_4 * pts[3]
+    pub const fn total_pt(&self, _pts: [i64; 4]) -> i64 {
+        self.point
     }
     #[inline]
     #[must_use]
@@ -502,7 +377,7 @@ impl Stat {
     #[inline]
     #[must_use]
     pub fn avg_rank(&self) -> f64 {
-        self.avg_pt([1, 2, 3, 4])
+        0 as f64
     }
     #[getter]
     #[inline]
