@@ -293,10 +293,10 @@ def train():
                     dqn.train()
 
                     avg_pt = stat.avg_pt([90, 45, 0, -135]) # for display only, never used in training
-                    better = avg_pt >= best_perf['avg_pt']
+                    better = avg_pt >= 0.0
                     if better:
                         past_best = best_perf.copy()
-                        best_perf['avg_pt'] = avg_pt
+                        best_perf['avg_pt'] = 0.0
                         best_perf['avg_rank'] = 0.0
 
                     logging.info(f'avg rank: {stat.avg_rank:.6}')
@@ -348,7 +348,6 @@ def train():
                         logging.info(
                             'a new record has been made, '
                             f'pt: {past_best["avg_pt"]:.4} -> {best_perf["avg_pt"]:.4}, '
-                            f'rank: {past_best["avg_rank"]:.4} -> {best_perf["avg_rank"]:.4}, '
                             f'saving to {best_state_file}'
                         )
                         shutil.copy(state_file, best_state_file)
@@ -388,8 +387,9 @@ def train():
         pb.close()
 
     # only run one epoch for offline for easier control
-    train_epoch()
-    gc.collect()
+    for i in range(1):
+        train_epoch()
+        gc.collect()
     # torch.cuda.empty_cache()
     # torch.cuda.synchronize()
 
