@@ -34,7 +34,7 @@ games = 32
 log_dir = 'test_play_logs'
 
 [dataset]
-globs = ['../logs/*.json.gz']
+globs = ['1v3_logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
@@ -88,8 +88,8 @@ log_dir = '1v3_logs'
 
 [1v3.challenger]
 device = 'cuda:0'
-name = 'mortal'
-state_file = 'mortal.pth'
+name = 'baseline'
+state_file = 'baseline.pth'
 stochastic_latent = false
 enable_compile = false
 enable_amp = true
@@ -97,8 +97,8 @@ enable_rule_based_agari_guard = true
 
 [1v3.champion]
 device = 'cuda:0'
-name = 'mortal'
-state_file = 'mortal.pth'
+name = 'baseline'
+state_file = 'baseline.pth'
 stochastic_latent = false
 enable_compile = false
 enable_amp = true
