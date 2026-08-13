@@ -16,3 +16,5 @@ tensorboard/
 sample_dump.txt
 *.json.gz
 1v3_logs/
+file_index.pth
+mortal.pth
