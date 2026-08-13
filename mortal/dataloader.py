@@ -39,7 +39,7 @@ class FileDatasetsIter(IterableDataset):
         self._dump_f = open(dump_path, 'w', encoding='utf-8')
         atexit.register(self._dump_f.close)
 
-    def _dump_sample(self, tag, game_idx, i, obs, actions, masks, steps_to_done, kyoku_rewards):
+    def _dump_sample(self, tag, game_idx, i, obs, actions, masks, steps_to_done, kyoku_rewards, final_scores):
         ob = obs[i]
         ob_flat = ob.ravel()
         nonzero = np.flatnonzero(ob_flat)
@@ -47,11 +47,11 @@ class FileDatasetsIter(IterableDataset):
         self._dump_f.write(
             'file={tag} game={game_idx} step={i} obs_shape={shape} dtype={dtype} '
             'obs_nz_count={nz} obs_sample={samples} '
-            'action={a} legal={legal} steps_to_done={sd} kyoku_reward={kr}\n'.format(
+            'action={a} legal={legal} steps_to_done={sd} kyoku_reward={kr} final_scores={fc}\n'.format(
                 tag=tag, game_idx=game_idx, i=i, shape=ob.shape, dtype=ob.dtype,
                 nz=len(nonzero), samples=samples.tolist() if len(samples) else [],
                 a=actions[i], legal=masks[i].tolist(), sd=steps_to_done[i],
-                kr=kyoku_rewards,
+                kr=kyoku_rewards, fc=final_scores
             )
         )
         self._dump_f.flush()
@@ -107,12 +107,14 @@ class FileDatasetsIter(IterableDataset):
                 dones = game.take_dones()
                 apply_gamma = game.take_apply_gamma()
 
+
                 # per game
-                _ = game.take_player_id()
+                player_id = game.take_player_id()
+                final_scores = game.take_grp().take_final_scores()
 
                 game_size = len(obs)
 
-                kyoku_rewards = 6.0
+                kyoku_rewards = (final_scores[player_id] - 25000) // 1000
 
                 steps_to_done = np.zeros(game_size, dtype=np.int64)
                 for i in reversed(range(game_size)):
@@ -122,7 +124,7 @@ class FileDatasetsIter(IterableDataset):
                 for i in range(game_size):
                     self._dump_sample(
                         tag, game_idx, i, obs, actions, masks,
-                        steps_to_done, kyoku_rewards,
+                        steps_to_done, kyoku_rewards, final_scores
                     )
                     entry = [
                         obs[i],
