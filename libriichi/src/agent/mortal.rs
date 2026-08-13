@@ -352,106 +352,6 @@ impl BatchAgent for MortalBatchAgent {
                 }
             }
 
-            37 => {
-                ensure!(
-                    cans.can_riichi,
-                    "failed riichi check: {}",
-                    state.brief_info()
-                );
-
-                Event::Reach { actor }
-            }
-
-            38 => {
-                ensure!(
-                    cans.can_chi_low,
-                    "failed chi low check: {}",
-                    state.brief_info()
-                );
-
-                let pai = state
-                    .last_kawa_tile()
-                    .context("invalid state: no last kawa tile")?;
-                let first = pai.next();
-
-                let can_akaize_consumed = match pai.as_u8() {
-                    tu8!(3m) | tu8!(4m) => akas_in_hand[0],
-                    tu8!(3p) | tu8!(4p) => akas_in_hand[1],
-                    tu8!(3s) | tu8!(4s) => akas_in_hand[2],
-                    _ => false,
-                };
-                let consumed = if can_akaize_consumed {
-                    [first.akaize(), first.next().akaize()]
-                } else {
-                    [first, first.next()]
-                };
-                Event::Chi {
-                    actor,
-                    target: cans.target_actor,
-                    pai,
-                    consumed,
-                }
-            }
-            39 => {
-                ensure!(
-                    cans.can_chi_mid,
-                    "failed chi mid check: {}",
-                    state.brief_info()
-                );
-
-                let pai = state
-                    .last_kawa_tile()
-                    .context("invalid state: no last kawa tile")?;
-
-                let can_akaize_consumed = match pai.as_u8() {
-                    tu8!(4m) | tu8!(6m) => akas_in_hand[0],
-                    tu8!(4p) | tu8!(6p) => akas_in_hand[1],
-                    tu8!(4s) | tu8!(6s) => akas_in_hand[2],
-                    _ => false,
-                };
-                let consumed = if can_akaize_consumed {
-                    [pai.prev().akaize(), pai.next().akaize()]
-                } else {
-                    [pai.prev(), pai.next()]
-                };
-                Event::Chi {
-                    actor,
-                    target: cans.target_actor,
-                    pai,
-                    consumed,
-                }
-            }
-            40 => {
-                ensure!(
-                    cans.can_chi_high,
-                    "failed chi high check: {}",
-                    state.brief_info()
-                );
-
-                let pai = state
-                    .last_kawa_tile()
-                    .context("invalid state: no last kawa tile")?;
-                let last = pai.prev();
-
-                let can_akaize_consumed = match pai.as_u8() {
-                    tu8!(6m) | tu8!(7m) => akas_in_hand[0],
-                    tu8!(6p) | tu8!(7p) => akas_in_hand[1],
-                    tu8!(6s) | tu8!(7s) => akas_in_hand[2],
-                    _ => false,
-                };
-                let consumed = if can_akaize_consumed {
-                    [last.prev().akaize(), last.akaize()]
-                } else {
-                    [last.prev(), last]
-                };
-                Event::Chi {
-                    actor,
-                    target: cans.target_actor,
-                    pai,
-                    consumed,
-                }
-            }
-
             41 => {
                 ensure!(cans.can_pon, "failed pon check: {}", state.brief_info());
 
@@ -535,22 +435,16 @@ impl BatchAgent for MortalBatchAgent {
                     state.brief_info(),
                 );
 
-                Event::Hora {
-                    actor,
-                    target: cans.target_actor,
-                    deltas: None,
-                    ura_markers: None,
+                if actor == cans.target_actor {
+                    Event::Hora {
+                        actor,
+                        target: cans.target_actor,
+                        deltas: None,
+                        ura_markers: None,
+                    }
+                } else {
+                    Event::None
                 }
-            }
-
-            44 => {
-                ensure!(
-                    cans.can_ryukyoku,
-                    "failed ryukyoku check: {}",
-                    state.brief_info()
-                );
-
-                Event::Ryukyoku { deltas: None }
             }
 
             // 45

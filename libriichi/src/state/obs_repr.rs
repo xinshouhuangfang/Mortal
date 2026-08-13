@@ -477,29 +477,17 @@ impl<'a> ObsEncoderContext<'a> {
 
         if cans.can_riichi {
             self.arr.fill(self.idx, 1.);
-            if !self.at_kan_select {
-                self.mask[37] = true;
-            }
         }
         self.idx += 1;
 
         if cans.can_chi_low {
             self.arr.fill(self.idx, 1.);
-            if !self.at_kan_select {
-                self.mask[38] = true;
-            }
         }
         if cans.can_chi_mid {
             self.arr.fill(self.idx + 1, 1.);
-            if !self.at_kan_select {
-                self.mask[39] = true;
-            }
         }
         if cans.can_chi_high {
             self.arr.fill(self.idx + 2, 1.);
-            if !self.at_kan_select {
-                self.mask[40] = true;
-            }
         }
         self.idx += 3;
 
@@ -555,9 +543,6 @@ impl<'a> ObsEncoderContext<'a> {
 
         if cans.can_ryukyoku {
             self.arr.fill(self.idx, 1.);
-            if !self.at_kan_select {
-                self.mask[44] = true;
-            }
         }
         self.idx += 1;
 
