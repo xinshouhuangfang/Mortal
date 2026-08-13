@@ -16,7 +16,7 @@ def main():
     log_dir = cfg['log_dir']
 
     if (key := cfg.get('seed_key', -1)) == -1:
-        key = secrets.randbits(64)
+        key = secrets.randbits(16)
 
     state = torch.load(cfg['champion']['state_file'], weights_only=True, map_location=torch.device('cpu'))
     cham_cfg = state['config']
@@ -64,7 +64,7 @@ def main():
         name = cfg['challenger']['name'],
     )
 
-    seed_start = 10000
+    seed_start = 200
     for i, seed in enumerate(range(seed_start, seed_start + seeds_per_iter * iters, seeds_per_iter)):
         print('-' * 50)
         print('#', i)
