@@ -5,7 +5,6 @@ def train():
     import gc
     import gzip
     import json
-    import shutil
     import random
     import torch
     from os import path
@@ -18,7 +17,6 @@ def train():
     from torch.utils.data import DataLoader
     from torch.utils.tensorboard import SummaryWriter
     from common import parameter_count, filtered_trimmed_lines, tqdm
-    from player import TestPlayer
     from dataloader import FileDatasetsIter, worker_init_fn
     from lr_scheduler import LinearWarmUpCosineAnnealingLR
     from model import Brain, DQN
@@ -30,12 +28,9 @@ def train():
     batch_size = config['control']['batch_size']
     opt_step_every = config['control']['opt_step_every']
     save_every = config['control']['save_every']
-    test_every = config['control']['test_every']
     log_every = config['control']['log_every']
-    test_games = config['test_play']['games']
     min_q_weight = config['cql']['min_q_weight']
     assert save_every % opt_step_every == 0
-    assert test_every % save_every == 0
     assert save_every % log_every == 0
 
     device = torch.device(config['control']['device'])
@@ -88,15 +83,9 @@ def train():
     optimizer = optim.AdamW(param_groups, lr=1, weight_decay=0, betas=betas, eps=eps)
     scheduler = LinearWarmUpCosineAnnealingLR(optimizer, **config['optim']['scheduler'])
     scaler = GradScaler(device.type, enabled=enable_amp)
-    test_player = TestPlayer()
-    best_perf = {
-        'avg_rank': 4.,
-        'avg_pt': -135.,
-    }
 
     steps = 0
     state_file = config['control']['state_file']
-    best_state_file = config['control']['best_state_file']
     if path.exists(state_file):
         state = torch.load(state_file, weights_only=True, map_location=device)
         timestamp = datetime.fromtimestamp(state['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
@@ -106,7 +95,6 @@ def train():
         optimizer.load_state_dict(state['optimizer'])
         scheduler.load_state_dict(state['scheduler'])
         scaler.load_state_dict(state['scaler'])
-        best_perf = state['best_perf']
         steps = state['steps']
 
     optimizer.zero_grad(set_to_none=True)
@@ -157,9 +145,6 @@ def train():
             file_list.sort(reverse=True)
             torch.save({'file_list': file_list}, file_index)
         logging.info(f'file list size: {len(file_list):,}')
-
-        before_next_test_play = (test_every - steps % test_every) % test_every
-        logging.info(f'total steps: {steps:,} (~{before_next_test_play:,})')
 
         if num_workers > 1:
             random.shuffle(file_list)
@@ -271,9 +256,6 @@ def train():
                     stats[k] = 0
                 idx = 0
 
-                before_next_test_play = (test_every - steps % test_every) % test_every
-                logging.info(f'total steps: {steps:,} (~{before_next_test_play:,})')
-
                 state = {
                     'mortal': mortal.state_dict(),
                     'current_dqn': dqn.state_dict(),
@@ -282,75 +264,9 @@ def train():
                     'scaler': scaler.state_dict(),
                     'steps': steps,
                     'timestamp': datetime.now().timestamp(),
-                    'best_perf': best_perf,
                     'config': config,
                 }
                 torch.save(state, state_file)
-
-                if steps % test_every == 0:
-                    stat = test_player.test_play(test_games // 4, mortal, dqn, device)
-                    mortal.train()
-                    dqn.train()
-
-                    avg_pt = stat.avg_pt([90, 45, 0, -135]) # for display only, never used in training
-                    better = avg_pt >= 0.0
-                    if better:
-                        past_best = best_perf.copy()
-                        best_perf['avg_pt'] = 0.0
-                        best_perf['avg_rank'] = 0.0
-
-                    logging.info(f'avg rank: {stat.avg_rank:.6}')
-                    logging.info(f'avg pt: {avg_pt:.6}')
-                    writer.add_scalar('test_play/avg_ranking', stat.avg_rank, steps)
-                    writer.add_scalar('test_play/avg_pt', avg_pt, steps)
-                    writer.add_scalars('test_play/ranking', {
-                        '1st': stat.rank_1_rate,
-                        '2nd': stat.rank_2_rate,
-                        '3rd': stat.rank_3_rate,
-                        '4th': stat.rank_4_rate,
-                    }, steps)
-                    writer.add_scalars('test_play/behavior', {
-                        'agari': stat.agari_rate,
-                        'houjuu': stat.houjuu_rate,
-                        'fuuro': stat.fuuro_rate,
-                        'riichi': stat.riichi_rate,
-                    }, steps)
-                    writer.add_scalars('test_play/agari_point', {
-                        'overall': stat.avg_point_per_agari,
-                        'riichi': stat.avg_point_per_riichi_agari,
-                        'fuuro': stat.avg_point_per_fuuro_agari,
-                        'dama': stat.avg_point_per_dama_agari,
-                    }, steps)
-                    writer.add_scalar('test_play/houjuu_point', stat.avg_point_per_houjuu, steps)
-                    writer.add_scalar('test_play/point_per_round', stat.avg_point_per_round, steps)
-                    writer.add_scalars('test_play/key_step', {
-                        'agari_jun': stat.avg_agari_jun,
-                        'houjuu_jun': stat.avg_houjuu_jun,
-                        'riichi_jun': stat.avg_riichi_jun,
-                    }, steps)
-                    writer.add_scalars('test_play/riichi', {
-                        'agari_after_riichi': stat.agari_rate_after_riichi,
-                        'houjuu_after_riichi': stat.houjuu_rate_after_riichi,
-                        'chasing_riichi': stat.chasing_riichi_rate,
-                        'riichi_chased': stat.riichi_chased_rate,
-                    }, steps)
-                    writer.add_scalar('test_play/riichi_point', stat.avg_riichi_point, steps)
-                    writer.add_scalars('test_play/fuuro', {
-                        'agari_after_fuuro': stat.agari_rate_after_fuuro,
-                        'houjuu_after_fuuro': stat.houjuu_rate_after_fuuro,
-                    }, steps)
-                    writer.add_scalar('test_play/fuuro_num', stat.avg_fuuro_num, steps)
-                    writer.add_scalar('test_play/fuuro_point', stat.avg_fuuro_point, steps)
-                    writer.flush()
-
-                    if better:
-                        torch.save(state, state_file)
-                        logging.info(
-                            'a new record has been made, '
-                            f'pt: {past_best["avg_pt"]:.4} -> {best_perf["avg_pt"]:.4}, '
-                            f'saving to {best_state_file}'
-                        )
-                        shutil.copy(state_file, best_state_file)
                 pb = tqdm(total=save_every, desc='TRAIN')
 
         for obs, actions, masks, steps_to_done, kyoku_rewards in data_loader:
