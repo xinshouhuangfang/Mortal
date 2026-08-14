@@ -109,6 +109,7 @@ iterations = 0
 eval_threshold = 0.0
 eval_games = 64
 start_from_baseline = false
+max_logs = 160
 
 [loop.exploration]
 epsilon_initial = 0.10
