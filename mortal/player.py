@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 import os
 import shutil
 import secrets
@@ -130,7 +129,7 @@ class TrainPlayer:
             disable_progress_bar = False,
             log_dir = self.log_dir,
         )
-        rankings = env.py_vs_py(
+        total_score = env.py_vs_py(
             challenger = engine_chal,
             champion = self.baseline_engine,
             seed_start = (self.train_seed, self.train_key),
@@ -141,8 +140,7 @@ class TrainPlayer:
             self.train_seed += self.seed_count
             self.repeat_counter = 0
 
-        rankings = np.array(rankings)
         file_list = list(map(lambda p: path.join(self.log_dir, p), os.listdir(self.log_dir)))
 
         torch.backends.cudnn.benchmark = config['control']['enable_cudnn_benchmark']
-        return rankings, file_list
+        return total_score, file_list

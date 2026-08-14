@@ -17,7 +17,7 @@ batch_size = 64
 opt_step_every = 1
 
 save_every = 40
-test_every = 40
+test_every = 400000
 log_every = 40
 
 # using env `TRAIN_PLAY_PROFILE`
@@ -30,17 +30,17 @@ top_p = 1.0
 repeats = 1
 
 [test_play]
-games = 32
+games = 64
 log_dir = 'test_play_logs'
 
 [dataset]
-globs = ['../logs/*.json.gz']
+globs = ['1v3_logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
 num_workers = 1
 player_names_files = ['player_names.txt']
-num_epochs = 20
+num_epochs = 10
 enable_augmentation = false
 augmented_first = false
 
@@ -88,7 +88,7 @@ log_dir = '1v3_logs'
 
 [1v3.challenger]
 device = 'cuda:0'
-name = 'mortal'
+name = 'trainee'
 state_file = 'mortal.pth'
 stochastic_latent = false
 enable_compile = false
@@ -97,9 +97,23 @@ enable_rule_based_agari_guard = true
 
 [1v3.champion]
 device = 'cuda:0'
-name = 'mortal'
-state_file = 'mortal.pth'
+name = 'baseline'
+state_file = 'baseline.pth'
 stochastic_latent = false
 enable_compile = false
 enable_amp = true
 enable_rule_based_agari_guard = true
+
+[loop]
+iterations = 0
+eval_threshold = 0.0
+eval_games = 64
+start_from_baseline = false
+max_logs = 160
+
+[loop.exploration]
+epsilon_initial = 0.10
+epsilon_final = 0.05
+temp_initial = 0.5
+temp_final = 0.2
+decay_iters = 20
