@@ -1,6 +1,5 @@
 import prelude
 
-import numpy as np
 import torch
 import secrets
 from model import Brain, DQN
@@ -72,16 +71,15 @@ def main():
             disable_progress_bar = False,
             log_dir = log_dir,
         )
-        rankings = env.py_vs_py(
+        total_score = env.py_vs_py(
             challenger = engine_chal,
             champion = engine_cham,
             seed_start = (seed, key),
             seed_count = seeds_per_iter,
         )
-        rankings = np.array(rankings)
-        avg_rank = rankings @ np.arange(1, 5) / rankings.sum()
-        avg_pt = rankings @ np.array([90, 45, 0, -135]) / rankings.sum()
-        print(f'challenger rankings: {rankings} ({avg_rank}, {avg_pt}pt)')
+        games = seeds_per_iter * 4
+        avg_score = total_score / games
+        print(f'challenger total_score: {total_score} ({avg_score} /game)')
 
 if __name__ == '__main__':
     try:

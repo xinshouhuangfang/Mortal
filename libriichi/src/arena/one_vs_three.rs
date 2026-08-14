@@ -32,7 +32,8 @@ impl OneVsThree {
         }
     }
 
-    /// Returns the rankings of the challenger.
+    /// Returns the total score of the challenger (sum of per-game net delta
+    /// divided by 1000, floored per game).
     pub fn py_vs_py(
         &self,
         challenger: PyObject,
@@ -40,7 +41,7 @@ impl OneVsThree {
         seed_start: (u64, u64),
         seed_count: u64,
         py: Python<'_>,
-    ) -> Result<[i32; 4]> {
+    ) -> Result<i64> {
         // `allow_threads` is required, otherwise it will block python GC to
         // run, leading to memory leaks, since this function is doing long
         // tasks.
@@ -52,12 +53,12 @@ impl OneVsThree {
                 seed_count,
             )?;
 
-            let mut rankings = [0; 4];
-            for (i, result) in results.iter().enumerate() {
-                let rank = result.rankings().rank_by_player[i % 4];
-                rankings[rank as usize] += 1;
-            }
-            Ok(rankings)
+            let total_score: i64 = results
+                .iter()
+                .enumerate()
+                .map(|(i, result)| (result.scores[i % 4] - 25000).div_euclid(1000) as i64)
+                .sum();
+            Ok(total_score)
         })
     }
 

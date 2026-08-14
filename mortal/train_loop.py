@@ -6,7 +6,6 @@ import shutil
 import logging
 import secrets
 import subprocess
-import numpy as np
 import torch
 from os import path
 from glob import glob
@@ -103,16 +102,15 @@ def main():
         challenger = load_engine(challenger_cfg, device, boltzmann_epsilon=epsilon, boltzmann_temp=temp)
         champion = load_engine(champion_cfg, device)
         env = OneVsThree(disable_progress_bar=False, log_dir=log_dir)
-        rankings = env.py_vs_py(
+        total_score = env.py_vs_py(
             challenger = challenger,
             champion = champion,
             seed_start = (200 + (iteration - 1) * seeds_per_iter, seed_key),
             seed_count = seeds_per_iter,
         )
-        rankings = np.array(rankings)
-        avg_rank = rankings @ np.arange(1, 5) / rankings.sum()
-        avg_pt = rankings @ np.array([90, 45, 0, -135]) / rankings.sum()
-        logging.info(f'gen: challenger rankings {rankings} ({avg_rank:.4f} rank, {avg_pt:.4f}pt)')
+        games = seeds_per_iter * 4
+        avg_score = total_score / games
+        logging.info(f'gen: challenger total_score={total_score} avg_score={avg_score:.3f}')
 
         generated = glob(path.join(log_dir, '*.json.gz'))
         assert len(generated) > 0, 'no games generated'

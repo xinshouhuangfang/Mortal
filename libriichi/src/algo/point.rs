@@ -113,7 +113,7 @@ impl Point {
         Self {
             ron: 6000 * count,
             tsumo_ko: 2000 * count,
-            tsumo_oya: 0,
+            tsumo_oya: 2000 * count,
         }
     }
 }
