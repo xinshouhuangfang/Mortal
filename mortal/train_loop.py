@@ -98,9 +98,7 @@ def main():
         temp = temp_initial + (temp_final - temp_initial) * t
         logging.info(f'--- iteration {iteration} | epsilon={epsilon:.4f} temp={temp:.4f} ---')
 
-        # 1. generate fresh self-play data (trainee vs frozen baseline)
-        if path.isdir(log_dir):
-            shutil.rmtree(log_dir)
+        # 1. generate self-play data (trainee vs frozen baseline), accumulating across iterations
         os.makedirs(log_dir, exist_ok=True)
         challenger = load_engine(challenger_cfg, device, boltzmann_epsilon=epsilon, boltzmann_temp=temp)
         champion = load_engine(champion_cfg, device)
@@ -118,6 +116,16 @@ def main():
 
         generated = glob(path.join(log_dir, '*.json.gz'))
         assert len(generated) > 0, 'no games generated'
+
+        # keep only the most recent max_logs games, dropping the oldest ones
+        max_logs = loop.get('max_logs', 0)
+        if max_logs > 0 and len(generated) > max_logs:
+            generated.sort(key=lambda p: path.getmtime(p))
+            for old in generated[:len(generated) - max_logs]:
+                os.remove(old)
+                plain = old[:-3]
+                if path.exists(plain):
+                    os.remove(plain)
 
         # 2. force rebuild of the file index against the fresh logs
         if path.exists(file_index):
