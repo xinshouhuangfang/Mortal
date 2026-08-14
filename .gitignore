@@ -18,3 +18,4 @@ sample_dump.txt
 file_index.pth
 mortal.pth
 mortal/test_play_logs/
+*.json.gz
