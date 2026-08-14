@@ -301,16 +301,7 @@ impl BoardState {
 
         let point = points[single_actor as usize].unwrap();
         let mut deltas = [0; 4];
-        if let Some(pao_target) = self.paos[single_actor as usize] {
-            // For pao to happen, the agari must have at least 1 yakuman so ron
-            // point and sum of tsumo point should be equal.
-            deltas[pao_target as usize] = -point.ron - honba_left * 300;
-        } else {
-            deltas.fill(-point.tsumo_ko - honba_left * 100);
-            if single_actor != self.oya {
-                deltas[self.oya as usize] = -point.tsumo_oya - honba_left * 100;
-            }
-        };
+        deltas.fill(-point.tsumo_ko - honba_left * 100);
         deltas[single_actor as usize] =
             point.tsumo_total(single_actor == self.oya) + kyotaku_point + honba_left * 300;
 
