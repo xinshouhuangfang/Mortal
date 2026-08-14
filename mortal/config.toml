@@ -80,7 +80,7 @@ state_file = 'baseline.pth'
 
 [1v3]
 seed_key = -1
-games_per_iter = 4
+games_per_iter = 128
 iters = 1
 log_dir = '1v3_logs'
 
