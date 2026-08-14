@@ -27,11 +27,8 @@ def train():
 
     batch_size = config['control']['batch_size']
     opt_step_every = config['control']['opt_step_every']
-    save_every = config['control']['save_every']
     log_every = config['control']['log_every']
     min_q_weight = config['cql']['min_q_weight']
-    assert save_every % opt_step_every == 0
-    assert save_every % log_every == 0
 
     device = torch.device(config['control']['device'])
     torch.backends.cudnn.benchmark = config['control']['enable_cudnn_benchmark']
@@ -110,8 +107,8 @@ def train():
         'dqn_loss': 0,
         'cql_loss': 0,
     }
-    all_q = torch.zeros((save_every, batch_size), device=device, dtype=torch.float32)
-    all_q_target = torch.zeros((save_every, batch_size), device=device, dtype=torch.float32)
+    all_q = torch.zeros((log_every, batch_size), device=device, dtype=torch.float32)
+    all_q_target = torch.zeros((log_every, batch_size), device=device, dtype=torch.float32)
     idx = 0
 
     def train_epoch():
@@ -173,14 +170,13 @@ def train():
         remaining_steps_to_done = []
         remaining_kyoku_rewards = []
         remaining_bs = 0
-        pb = tqdm(total=save_every, desc='TRAIN', initial=steps % save_every)
+        pb = tqdm(total=None, desc='TRAIN')
         log_dqn_loss = 0
         log_cql_loss = 0
 
         def train_batch(obs, actions, masks, steps_to_done, kyoku_rewards):
             nonlocal steps
             nonlocal idx
-            nonlocal pb
             nonlocal log_dqn_loss
             nonlocal log_cql_loss
 
@@ -238,15 +234,12 @@ def train():
                 log_dqn_loss = 0
                 log_cql_loss = 0
 
-            if steps % save_every == 0:
-                pb.close()
-
                 # downsample to reduce tensorboard event size
                 all_q_1d = all_q.cpu().numpy().flatten()[::128]
                 all_q_target_1d = all_q_target.cpu().numpy().flatten()[::128]
 
-                writer.add_scalar('loss/dqn_loss', stats['dqn_loss'] / save_every, steps)
-                writer.add_scalar('loss/cql_loss', stats['cql_loss'] / save_every, steps)
+                writer.add_scalar('loss/dqn_loss', stats['dqn_loss'] / log_every, steps)
+                writer.add_scalar('loss/cql_loss', stats['cql_loss'] / log_every, steps)
                 writer.add_scalar('hparam/lr', scheduler.get_last_lr()[0], steps)
                 writer.add_histogram('q_predicted', all_q_1d, steps)
                 writer.add_histogram('q_target', all_q_target_1d, steps)
@@ -255,19 +248,6 @@ def train():
                 for k in stats:
                     stats[k] = 0
                 idx = 0
-
-                state = {
-                    'mortal': mortal.state_dict(),
-                    'current_dqn': dqn.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'scheduler': scheduler.state_dict(),
-                    'scaler': scaler.state_dict(),
-                    'steps': steps,
-                    'timestamp': datetime.now().timestamp(),
-                    'config': config,
-                }
-                torch.save(state, state_file)
-                pb = tqdm(total=save_every, desc='TRAIN')
 
         for obs, actions, masks, steps_to_done, kyoku_rewards in data_loader:
             bs = obs.shape[0]
@@ -301,6 +281,19 @@ def train():
                 start = end
                 end += batch_size
         pb.close()
+
+        state = {
+            'mortal': mortal.state_dict(),
+            'current_dqn': dqn.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'scheduler': scheduler.state_dict(),
+            'scaler': scaler.state_dict(),
+            'steps': steps,
+            'timestamp': datetime.now().timestamp(),
+            'config': config,
+        }
+        torch.save(state, state_file)
+        logging.info(f'training done, saved at step {steps:,}')
 
     # only run one epoch for offline for easier control
     for i in range(1):

@@ -16,7 +16,6 @@ enable_compile = false
 batch_size = 64
 opt_step_every = 1
 
-save_every = 40
 log_every = 40
 
 # using env `TRAIN_PLAY_PROFILE`
@@ -81,7 +80,7 @@ state_file = 'baseline.pth'
 
 [1v3]
 seed_key = -1
-games_per_iter = 128
+games_per_iter = 4
 iters = 1
 log_dir = '1v3_logs'
 
