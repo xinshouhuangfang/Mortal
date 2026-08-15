@@ -5,7 +5,9 @@ def train():
     import gc
     import gzip
     import json
+    import queue
     import random
+    import threading
     import torch
     from os import path
     from glob import glob
@@ -14,10 +16,9 @@ def train():
     from torch import optim, nn
     from torch.amp import GradScaler
     from torch.nn.utils import clip_grad_norm_
-    from torch.utils.data import DataLoader
     from torch.utils.tensorboard import SummaryWriter
     from common import parameter_count, filtered_trimmed_lines, tqdm
-    from dataloader import FileDatasetsIter, worker_init_fn
+    from dataloader import FileDatasetsIter
     from lr_scheduler import LinearWarmUpCosineAnnealingLR
     from model import Brain, DQN
     from libriichi.consts import obs_shape
@@ -143,8 +144,6 @@ def train():
             torch.save({'file_list': file_list}, file_index)
         logging.info(f'file list size: {len(file_list):,}')
 
-        if num_workers > 1:
-            random.shuffle(file_list)
         file_data = FileDatasetsIter(
             version = version,
             file_list = file_list,
@@ -155,21 +154,27 @@ def train():
             enable_augmentation = enable_augmentation,
             augmented_first = augmented_first,
         )
-        data_loader = iter(DataLoader(
-            dataset = file_data,
-            batch_size = batch_size,
-            drop_last = False,
-            num_workers = num_workers,
-            pin_memory = True,
-            worker_init_fn = worker_init_fn,
-        ))
 
-        remaining_obs = []
-        remaining_actions = []
-        remaining_masks = []
-        remaining_steps_to_done = []
-        remaining_kyoku_rewards = []
-        remaining_bs = 0
+        # Preload the whole dataset into memory once, then feed the GPU from a
+        # producer thread so the H2D copies overlap with the forward/backward,
+        # keeping the GPU saturated.
+        t_preload = datetime.now()
+        try:
+            obs_all, actions_all, masks_all, steps_all, rewards_all = file_data.preload()
+        except ValueError as ex:
+            logging.warning(f'training skipped: {ex}')
+            return
+        n_total = actions_all.shape[0]
+        logging.info(
+            f'preloaded {n_total:,} samples in {(datetime.now() - t_preload).total_seconds():.1f}s'
+        )
+
+        obs_all = torch.as_tensor(obs_all)
+        actions_all = torch.as_tensor(actions_all)
+        masks_all = torch.as_tensor(masks_all)
+        steps_all = torch.as_tensor(steps_all)
+        rewards_all = torch.as_tensor(rewards_all)
+
         pb = tqdm(total=None, desc='TRAIN')
         log_dqn_loss = 0
         log_cql_loss = 0
@@ -180,11 +185,6 @@ def train():
             nonlocal log_dqn_loss
             nonlocal log_cql_loss
 
-            obs = obs.to(dtype=torch.float32, device=device)
-            actions = actions.to(dtype=torch.int64, device=device)
-            masks = masks.to(dtype=torch.bool, device=device)
-            steps_to_done = steps_to_done.to(dtype=torch.int64, device=device)
-            kyoku_rewards = kyoku_rewards.to(dtype=torch.float64, device=device)
             assert masks[range(batch_size), actions].all()
 
             q_target_mc = gamma ** steps_to_done * kyoku_rewards
@@ -249,38 +249,47 @@ def train():
                     stats[k] = 0
                 idx = 0
 
-        for obs, actions, masks, steps_to_done, kyoku_rewards in data_loader:
-            bs = obs.shape[0]
-            if bs != batch_size:
-                remaining_obs.append(obs)
-                remaining_actions.append(actions)
-                remaining_masks.append(masks)
-                remaining_steps_to_done.append(steps_to_done)
-                remaining_kyoku_rewards.append(kyoku_rewards)
-                remaining_bs += bs
-                continue
-            train_batch(obs, actions, masks, steps_to_done, kyoku_rewards)
+        num_batches = n_total // batch_size
+        perm = torch.randperm(n_total)
 
-        remaining_batches = remaining_bs // batch_size
-        if remaining_batches > 0:
-            obs = torch.cat(remaining_obs, dim=0)
-            actions = torch.cat(remaining_actions, dim=0)
-            masks = torch.cat(remaining_masks, dim=0)
-            steps_to_done = torch.cat(remaining_steps_to_done, dim=0)
-            kyoku_rewards = torch.cat(remaining_kyoku_rewards, dim=0)
-            start = 0
-            end = batch_size
-            while end <= remaining_bs:
-                train_batch(
-                    obs[start:end],
-                    actions[start:end],
-                    masks[start:end],
-                    steps_to_done[start:end],
-                    kyoku_rewards[start:end],
-                )
-                start = end
-                end += batch_size
+        # use a dedicated stream for H2D copies so they overlap with the
+        # forward/backward running on the default stream
+        copy_stream = torch.cuda.Stream(device=device)
+        batch_queue = queue.Queue(maxsize=2)
+        producer_error = []
+
+        def producer():
+            try:
+                for b in range(num_batches):
+                    idxs = perm[b * batch_size:(b + 1) * batch_size]
+                    with torch.cuda.stream(copy_stream):
+                        batch = (
+                            obs_all[idxs].to(device, non_blocking=True),
+                            actions_all[idxs].to(device, non_blocking=True),
+                            masks_all[idxs].to(device, non_blocking=True),
+                            steps_all[idxs].to(device, non_blocking=True),
+                            rewards_all[idxs].to(dtype=torch.float64, device=device, non_blocking=True),
+                        )
+                    copy_stream.synchronize()
+                    batch_queue.put(batch)
+                batch_queue.put(None)
+            except Exception as ex:
+                producer_error.append(ex)
+                batch_queue.put(None)
+
+        producer_thread = threading.Thread(target=producer, daemon=True)
+        producer_thread.start()
+
+        for _ in range(num_batches):
+            batch = batch_queue.get()
+            if batch is None:
+                break
+            train_batch(*batch)
+
+        producer_thread.join()
         pb.close()
+        if producer_error:
+            raise producer_error[0]
 
         state = {
             'mortal': mortal.state_dict(),
