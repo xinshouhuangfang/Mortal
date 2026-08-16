@@ -50,12 +50,16 @@ class TestPlayer:
         baseline_cfg = config['baseline']['test']
         device = torch.device(baseline_cfg['device'])
 
+        self.baseline_cfg = baseline_cfg
+        self.baseline_device = device
         self.baseline_engine = load_baseline_engine(baseline_cfg, device)
         self.chal_version = config['control']['version']
         self.log_dir = path.abspath(config['test_play']['log_dir'])
 
     def test_play(self, seed_count, mortal, dqn, device):
         torch.backends.cudnn.benchmark = False
+        # reload the latest baseline each time so a recent promotion is used
+        self.baseline_engine = load_baseline_engine(self.baseline_cfg, self.baseline_device)
         engine_chal = MortalEngine(
             mortal,
             dqn,
