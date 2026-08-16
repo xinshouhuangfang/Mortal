@@ -254,7 +254,7 @@ def train():
 
         # use a dedicated stream for H2D copies so they overlap with the
         # forward/backward running on the default stream
-        copy_stream = torch.cuda.Stream(device=device)
+        copy_stream = torch.cuda.Stream(device=device) if device.type == 'cuda' else None
         batch_queue = queue.Queue(maxsize=2)
         producer_error = []
 
@@ -262,15 +262,24 @@ def train():
             try:
                 for b in range(num_batches):
                     idxs = perm[b * batch_size:(b + 1) * batch_size]
-                    with torch.cuda.stream(copy_stream):
+                    if copy_stream is not None:
+                        with torch.cuda.stream(copy_stream):
+                            batch = (
+                                obs_all[idxs].to(device, non_blocking=True),
+                                actions_all[idxs].to(device, non_blocking=True),
+                                masks_all[idxs].to(device, non_blocking=True),
+                                steps_all[idxs].to(device, non_blocking=True),
+                                rewards_all[idxs].to(dtype=torch.float64, device=device, non_blocking=True),
+                            )
+                        copy_stream.synchronize()
+                    else:
                         batch = (
-                            obs_all[idxs].to(device, non_blocking=True),
-                            actions_all[idxs].to(device, non_blocking=True),
-                            masks_all[idxs].to(device, non_blocking=True),
-                            steps_all[idxs].to(device, non_blocking=True),
-                            rewards_all[idxs].to(dtype=torch.float64, device=device, non_blocking=True),
+                            obs_all[idxs].to(device),
+                            actions_all[idxs].to(device),
+                            masks_all[idxs].to(device),
+                            steps_all[idxs].to(device),
+                            rewards_all[idxs].to(dtype=torch.float64, device=device),
                         )
-                    copy_stream.synchronize()
                     batch_queue.put(batch)
                 batch_queue.put(None)
             except Exception as ex:
