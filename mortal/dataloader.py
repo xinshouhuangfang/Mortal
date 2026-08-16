@@ -1,5 +1,3 @@
-import os
-import atexit
 import random
 import numpy as np
 import torch
@@ -33,115 +31,74 @@ class FileDatasetsIter(IterableDataset):
         self.augmented_first = augmented_first
         self.iterator = None
 
-        # dump each fed sample to a file for debugging; path from
-        # env MORTAL_SAMPLE_DUMP, defaults to ./sample_dump.txt
-        dump_path = os.environ.get('MORTAL_SAMPLE_DUMP', 'sample_dump.txt')
-        self._dump_f = open(dump_path, 'w', encoding='utf-8')
-        atexit.register(self._dump_f.close)
+    def preload(self):
+        # Encode the whole dataset once into memory as dense arrays, then let
+        # training feed the GPU by slicing them directly.
+        obs_l = []
+        actions_l = []
+        masks_l = []
+        steps_l = []
+        rewards_l = []
+        total = 0
 
-    def _dump_sample(self, tag, game_idx, i, obs, actions, masks, steps_to_done, kyoku_rewards, final_scores):
-        ob = obs[i]
-        ob_flat = ob.ravel()
-        nonzero = np.flatnonzero(ob_flat)
-        samples = ob_flat[nonzero[:10]]
-        self._dump_f.write(
-            'file={tag} game={game_idx} step={i} obs_shape={shape} dtype={dtype} '
-            'obs_nz_count={nz} obs_sample={samples} '
-            'action={a} legal={legal} steps_to_done={sd} kyoku_reward={kr} final_scores={fc}\n'.format(
-                tag=tag, game_idx=game_idx, i=i, shape=ob.shape, dtype=ob.dtype,
-                nz=len(nonzero), samples=samples.tolist() if len(samples) else [],
-                a=actions[i], legal=masks[i].tolist(), sd=steps_to_done[i],
-                kr=kyoku_rewards, fc=final_scores
+        for augmented in self._augment_order():
+            random.shuffle(self.file_list)
+            self.loader = GameplayLoader(
+                version = self.version,
+                oracle = self.oracle,
+                player_names = self.player_names,
+                excludes = self.excludes,
+                augmented = augmented,
             )
+            data = self.loader.load_gz_log_files(self.file_list)
+            for file in data:
+                for game in file:
+                    obs_list = game.take_obs()
+                    game_size = len(obs_list)
+                    if game_size == 0:
+                        continue
+                    obs = np.stack(obs_list)
+                    actions = np.asarray(game.take_actions())
+                    masks = np.stack(game.take_masks())
+                    _ = game.take_at_kyoku()
+                    dones = np.asarray(game.take_dones())
+                    apply_gamma = np.asarray(game.take_apply_gamma())
+
+                    player_id = game.take_player_id()
+                    final_scores = np.asarray(game.take_grp().take_final_scores())
+
+                    kyoku_rewards = (final_scores[player_id] - 25000) // 1000
+
+                    steps_to_done = np.zeros(game_size, dtype=np.int64)
+                    for i in reversed(range(game_size)):
+                        if not dones[i]:
+                            steps_to_done[i] = steps_to_done[i + 1] + int(apply_gamma[i])
+
+                    obs_l.append(obs)
+                    actions_l.append(actions)
+                    masks_l.append(masks)
+                    steps_l.append(steps_to_done)
+                    rewards_l.append(np.full(game_size, kyoku_rewards, dtype=np.int64))
+                    total += game_size
+
+        if total == 0:
+            raise ValueError('no training samples found')
+
+        return (
+            np.concatenate(obs_l),
+            np.concatenate(actions_l),
+            np.concatenate(masks_l),
+            np.concatenate(steps_l),
+            np.concatenate(rewards_l),
         )
-        self._dump_f.flush()
 
-    def build_iter(self):
-        for _ in range(self.num_epochs):
-            yield from self.load_files(self.augmented_first)
-            if self.enable_augmentation:
-                yield from self.load_files(not self.augmented_first)
-
-    def load_files(self, augmented):
-        # shuffle the file list for each epoch
-        random.shuffle(self.file_list)
-
-        self.loader = GameplayLoader(
-            version = self.version,
-            oracle = self.oracle,
-            player_names = self.player_names,
-            excludes = self.excludes,
-            augmented = augmented,
-        )
-        self.buffer = []
-
-        for start_idx in range(0, len(self.file_list), self.file_batch_size):
-            old_buffer_size = len(self.buffer)
-            self.populate_buffer(self.file_list[start_idx:start_idx + self.file_batch_size])
-            buffer_size = len(self.buffer)
-
-            reserved_size = int((buffer_size - old_buffer_size) * self.reserve_ratio)
-            if reserved_size > buffer_size:
-                continue
-
-            random.shuffle(self.buffer)
-            yield from self.buffer[reserved_size:]
-            del self.buffer[reserved_size:]
-        random.shuffle(self.buffer)
-        yield from self.buffer
-        self.buffer.clear()
-
-    def populate_buffer(self, file_list):
-        data = self.loader.load_gz_log_files(file_list)
-        tag = os.path.basename(file_list[0]) if file_list else 'unknown'
-        game_idx = 0
-        for file in data:
-            for game in file:
-                # per move
-                obs = game.take_obs()
-                if self.oracle:
-                    invisible_obs = game.take_invisible_obs()
-                actions = game.take_actions()
-                masks = game.take_masks()
-                _ = game.take_at_kyoku()
-                dones = game.take_dones()
-                apply_gamma = game.take_apply_gamma()
-
-
-                # per game
-                player_id = game.take_player_id()
-                final_scores = game.take_grp().take_final_scores()
-
-                game_size = len(obs)
-
-                kyoku_rewards = (final_scores[player_id] - 25000) // 1000
-
-                steps_to_done = np.zeros(game_size, dtype=np.int64)
-                for i in reversed(range(game_size)):
-                    if not dones[i]:
-                        steps_to_done[i] = steps_to_done[i + 1] + int(apply_gamma[i])
-
-                for i in range(game_size):
-                    self._dump_sample(
-                        tag, game_idx, i, obs, actions, masks,
-                        steps_to_done, kyoku_rewards, final_scores
-                    )
-                    entry = [
-                        obs[i],
-                        actions[i],
-                        masks[i],
-                        steps_to_done[i],
-                        kyoku_rewards,
-                    ]
-                    if self.oracle:
-                        entry.insert(1, invisible_obs[i])
-                    self.buffer.append(entry)
-                game_idx += 1
+    def _augment_order(self):
+        if not self.enable_augmentation:
+            return (self.augmented_first,)
+        return (self.augmented_first, not self.augmented_first)
 
     def __iter__(self):
-        if self.iterator is None:
-            self.iterator = self.build_iter()
-        return self.iterator
+        raise NotImplementedError('use preload()')
 
 def worker_init_fn(*args, **kwargs):
     worker_info = torch.utils.data.get_worker_info()

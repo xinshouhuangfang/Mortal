@@ -5,8 +5,9 @@ def train():
     import gc
     import gzip
     import json
-    import shutil
+    import queue
     import random
+    import threading
     import torch
     from os import path
     from glob import glob
@@ -15,11 +16,9 @@ def train():
     from torch import optim, nn
     from torch.amp import GradScaler
     from torch.nn.utils import clip_grad_norm_
-    from torch.utils.data import DataLoader
     from torch.utils.tensorboard import SummaryWriter
     from common import parameter_count, filtered_trimmed_lines, tqdm
-    from player import TestPlayer
-    from dataloader import FileDatasetsIter, worker_init_fn
+    from dataloader import FileDatasetsIter
     from lr_scheduler import LinearWarmUpCosineAnnealingLR
     from model import Brain, DQN
     from libriichi.consts import obs_shape
@@ -29,14 +28,8 @@ def train():
 
     batch_size = config['control']['batch_size']
     opt_step_every = config['control']['opt_step_every']
-    save_every = config['control']['save_every']
-    test_every = config['control']['test_every']
     log_every = config['control']['log_every']
-    test_games = config['test_play']['games']
     min_q_weight = config['cql']['min_q_weight']
-    assert save_every % opt_step_every == 0
-    assert test_every % save_every == 0
-    assert save_every % log_every == 0
 
     device = torch.device(config['control']['device'])
     torch.backends.cudnn.benchmark = config['control']['enable_cudnn_benchmark']
@@ -88,15 +81,9 @@ def train():
     optimizer = optim.AdamW(param_groups, lr=1, weight_decay=0, betas=betas, eps=eps)
     scheduler = LinearWarmUpCosineAnnealingLR(optimizer, **config['optim']['scheduler'])
     scaler = GradScaler(device.type, enabled=enable_amp)
-    test_player = TestPlayer()
-    best_perf = {
-        'avg_rank': 4.,
-        'avg_pt': -135.,
-    }
 
     steps = 0
     state_file = config['control']['state_file']
-    best_state_file = config['control']['best_state_file']
     if path.exists(state_file):
         state = torch.load(state_file, weights_only=True, map_location=device)
         timestamp = datetime.fromtimestamp(state['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
@@ -106,7 +93,6 @@ def train():
         optimizer.load_state_dict(state['optimizer'])
         scheduler.load_state_dict(state['scheduler'])
         scaler.load_state_dict(state['scaler'])
-        best_perf = state['best_perf']
         steps = state['steps']
 
     optimizer.zero_grad(set_to_none=True)
@@ -122,8 +108,8 @@ def train():
         'dqn_loss': 0,
         'cql_loss': 0,
     }
-    all_q = torch.zeros((save_every, batch_size), device=device, dtype=torch.float32)
-    all_q_target = torch.zeros((save_every, batch_size), device=device, dtype=torch.float32)
+    all_q = torch.zeros((log_every, batch_size), device=device, dtype=torch.float32)
+    all_q_target = torch.zeros((log_every, batch_size), device=device, dtype=torch.float32)
     idx = 0
 
     def train_epoch():
@@ -158,11 +144,6 @@ def train():
             torch.save({'file_list': file_list}, file_index)
         logging.info(f'file list size: {len(file_list):,}')
 
-        before_next_test_play = (test_every - steps % test_every) % test_every
-        logging.info(f'total steps: {steps:,} (~{before_next_test_play:,})')
-
-        if num_workers > 1:
-            random.shuffle(file_list)
         file_data = FileDatasetsIter(
             version = version,
             file_list = file_list,
@@ -173,37 +154,37 @@ def train():
             enable_augmentation = enable_augmentation,
             augmented_first = augmented_first,
         )
-        data_loader = iter(DataLoader(
-            dataset = file_data,
-            batch_size = batch_size,
-            drop_last = False,
-            num_workers = num_workers,
-            pin_memory = True,
-            worker_init_fn = worker_init_fn,
-        ))
 
-        remaining_obs = []
-        remaining_actions = []
-        remaining_masks = []
-        remaining_steps_to_done = []
-        remaining_kyoku_rewards = []
-        remaining_bs = 0
-        pb = tqdm(total=save_every, desc='TRAIN', initial=steps % save_every)
+        # Preload the whole dataset into memory once, then feed the GPU from a
+        # producer thread so the H2D copies overlap with the forward/backward,
+        # keeping the GPU saturated.
+        t_preload = datetime.now()
+        try:
+            obs_all, actions_all, masks_all, steps_all, rewards_all = file_data.preload()
+        except ValueError as ex:
+            logging.warning(f'training skipped: {ex}')
+            return
+        n_total = actions_all.shape[0]
+        logging.info(
+            f'preloaded {n_total:,} samples in {(datetime.now() - t_preload).total_seconds():.1f}s'
+        )
+
+        obs_all = torch.as_tensor(obs_all)
+        actions_all = torch.as_tensor(actions_all)
+        masks_all = torch.as_tensor(masks_all)
+        steps_all = torch.as_tensor(steps_all)
+        rewards_all = torch.as_tensor(rewards_all)
+
+        pb = tqdm(total=None, desc='TRAIN')
         log_dqn_loss = 0
         log_cql_loss = 0
 
         def train_batch(obs, actions, masks, steps_to_done, kyoku_rewards):
             nonlocal steps
             nonlocal idx
-            nonlocal pb
             nonlocal log_dqn_loss
             nonlocal log_cql_loss
 
-            obs = obs.to(dtype=torch.float32, device=device)
-            actions = actions.to(dtype=torch.int64, device=device)
-            masks = masks.to(dtype=torch.bool, device=device)
-            steps_to_done = steps_to_done.to(dtype=torch.int64, device=device)
-            kyoku_rewards = kyoku_rewards.to(dtype=torch.float64, device=device)
             assert masks[range(batch_size), actions].all()
 
             q_target_mc = gamma ** steps_to_done * kyoku_rewards
@@ -253,15 +234,12 @@ def train():
                 log_dqn_loss = 0
                 log_cql_loss = 0
 
-            if steps % save_every == 0:
-                pb.close()
-
                 # downsample to reduce tensorboard event size
                 all_q_1d = all_q.cpu().numpy().flatten()[::128]
                 all_q_target_1d = all_q_target.cpu().numpy().flatten()[::128]
 
-                writer.add_scalar('loss/dqn_loss', stats['dqn_loss'] / save_every, steps)
-                writer.add_scalar('loss/cql_loss', stats['cql_loss'] / save_every, steps)
+                writer.add_scalar('loss/dqn_loss', stats['dqn_loss'] / log_every, steps)
+                writer.add_scalar('loss/cql_loss', stats['cql_loss'] / log_every, steps)
                 writer.add_scalar('hparam/lr', scheduler.get_last_lr()[0], steps)
                 writer.add_histogram('q_predicted', all_q_1d, steps)
                 writer.add_histogram('q_target', all_q_target_1d, steps)
@@ -271,120 +249,69 @@ def train():
                     stats[k] = 0
                 idx = 0
 
-                before_next_test_play = (test_every - steps % test_every) % test_every
-                logging.info(f'total steps: {steps:,} (~{before_next_test_play:,})')
+        num_batches = n_total // batch_size
+        perm = torch.randperm(n_total)
 
-                state = {
-                    'mortal': mortal.state_dict(),
-                    'current_dqn': dqn.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'scheduler': scheduler.state_dict(),
-                    'scaler': scaler.state_dict(),
-                    'steps': steps,
-                    'timestamp': datetime.now().timestamp(),
-                    'best_perf': best_perf,
-                    'config': config,
-                }
-                torch.save(state, state_file)
+        # use a dedicated stream for H2D copies so they overlap with the
+        # forward/backward running on the default stream
+        copy_stream = torch.cuda.Stream(device=device) if device.type == 'cuda' else None
+        batch_queue = queue.Queue(maxsize=2)
+        producer_error = []
 
-                if steps % test_every == 0:
-                    stat = test_player.test_play(test_games // 4, mortal, dqn, device)
-                    mortal.train()
-                    dqn.train()
-
-                    avg_pt = stat.avg_pt([90, 45, 0, -135]) # for display only, never used in training
-                    better = avg_pt >= 0.0
-                    if better:
-                        past_best = best_perf.copy()
-                        best_perf['avg_pt'] = 0.0
-                        best_perf['avg_rank'] = 0.0
-
-                    logging.info(f'avg rank: {stat.avg_rank:.6}')
-                    logging.info(f'avg pt: {avg_pt:.6}')
-                    writer.add_scalar('test_play/avg_ranking', stat.avg_rank, steps)
-                    writer.add_scalar('test_play/avg_pt', avg_pt, steps)
-                    writer.add_scalars('test_play/ranking', {
-                        '1st': stat.rank_1_rate,
-                        '2nd': stat.rank_2_rate,
-                        '3rd': stat.rank_3_rate,
-                        '4th': stat.rank_4_rate,
-                    }, steps)
-                    writer.add_scalars('test_play/behavior', {
-                        'agari': stat.agari_rate,
-                        'houjuu': stat.houjuu_rate,
-                        'fuuro': stat.fuuro_rate,
-                        'riichi': stat.riichi_rate,
-                    }, steps)
-                    writer.add_scalars('test_play/agari_point', {
-                        'overall': stat.avg_point_per_agari,
-                        'riichi': stat.avg_point_per_riichi_agari,
-                        'fuuro': stat.avg_point_per_fuuro_agari,
-                        'dama': stat.avg_point_per_dama_agari,
-                    }, steps)
-                    writer.add_scalar('test_play/houjuu_point', stat.avg_point_per_houjuu, steps)
-                    writer.add_scalar('test_play/point_per_round', stat.avg_point_per_round, steps)
-                    writer.add_scalars('test_play/key_step', {
-                        'agari_jun': stat.avg_agari_jun,
-                        'houjuu_jun': stat.avg_houjuu_jun,
-                        'riichi_jun': stat.avg_riichi_jun,
-                    }, steps)
-                    writer.add_scalars('test_play/riichi', {
-                        'agari_after_riichi': stat.agari_rate_after_riichi,
-                        'houjuu_after_riichi': stat.houjuu_rate_after_riichi,
-                        'chasing_riichi': stat.chasing_riichi_rate,
-                        'riichi_chased': stat.riichi_chased_rate,
-                    }, steps)
-                    writer.add_scalar('test_play/riichi_point', stat.avg_riichi_point, steps)
-                    writer.add_scalars('test_play/fuuro', {
-                        'agari_after_fuuro': stat.agari_rate_after_fuuro,
-                        'houjuu_after_fuuro': stat.houjuu_rate_after_fuuro,
-                    }, steps)
-                    writer.add_scalar('test_play/fuuro_num', stat.avg_fuuro_num, steps)
-                    writer.add_scalar('test_play/fuuro_point', stat.avg_fuuro_point, steps)
-                    writer.flush()
-
-                    if better:
-                        torch.save(state, state_file)
-                        logging.info(
-                            'a new record has been made, '
-                            f'pt: {past_best["avg_pt"]:.4} -> {best_perf["avg_pt"]:.4}, '
-                            f'saving to {best_state_file}'
+        def producer():
+            try:
+                for b in range(num_batches):
+                    idxs = perm[b * batch_size:(b + 1) * batch_size]
+                    if copy_stream is not None:
+                        with torch.cuda.stream(copy_stream):
+                            batch = (
+                                obs_all[idxs].to(device, non_blocking=True),
+                                actions_all[idxs].to(device, non_blocking=True),
+                                masks_all[idxs].to(device, non_blocking=True),
+                                steps_all[idxs].to(device, non_blocking=True),
+                                rewards_all[idxs].to(dtype=torch.float64, device=device, non_blocking=True),
+                            )
+                        copy_stream.synchronize()
+                    else:
+                        batch = (
+                            obs_all[idxs].to(device),
+                            actions_all[idxs].to(device),
+                            masks_all[idxs].to(device),
+                            steps_all[idxs].to(device),
+                            rewards_all[idxs].to(dtype=torch.float64, device=device),
                         )
-                        shutil.copy(state_file, best_state_file)
-                pb = tqdm(total=save_every, desc='TRAIN')
+                    batch_queue.put(batch)
+                batch_queue.put(None)
+            except Exception as ex:
+                producer_error.append(ex)
+                batch_queue.put(None)
 
-        for obs, actions, masks, steps_to_done, kyoku_rewards in data_loader:
-            bs = obs.shape[0]
-            if bs != batch_size:
-                remaining_obs.append(obs)
-                remaining_actions.append(actions)
-                remaining_masks.append(masks)
-                remaining_steps_to_done.append(steps_to_done)
-                remaining_kyoku_rewards.append(kyoku_rewards)
-                remaining_bs += bs
-                continue
-            train_batch(obs, actions, masks, steps_to_done, kyoku_rewards)
+        producer_thread = threading.Thread(target=producer, daemon=True)
+        producer_thread.start()
 
-        remaining_batches = remaining_bs // batch_size
-        if remaining_batches > 0:
-            obs = torch.cat(remaining_obs, dim=0)
-            actions = torch.cat(remaining_actions, dim=0)
-            masks = torch.cat(remaining_masks, dim=0)
-            steps_to_done = torch.cat(remaining_steps_to_done, dim=0)
-            kyoku_rewards = torch.cat(remaining_kyoku_rewards, dim=0)
-            start = 0
-            end = batch_size
-            while end <= remaining_bs:
-                train_batch(
-                    obs[start:end],
-                    actions[start:end],
-                    masks[start:end],
-                    steps_to_done[start:end],
-                    kyoku_rewards[start:end],
-                )
-                start = end
-                end += batch_size
+        for _ in range(num_batches):
+            batch = batch_queue.get()
+            if batch is None:
+                break
+            train_batch(*batch)
+
+        producer_thread.join()
         pb.close()
+        if producer_error:
+            raise producer_error[0]
+
+        state = {
+            'mortal': mortal.state_dict(),
+            'current_dqn': dqn.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'scheduler': scheduler.state_dict(),
+            'scaler': scaler.state_dict(),
+            'steps': steps,
+            'timestamp': datetime.now().timestamp(),
+            'config': config,
+        }
+        torch.save(state, state_file)
+        logging.info(f'training done, saved at step {steps:,}')
 
     # only run one epoch for offline for easier control
     for i in range(1):

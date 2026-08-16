@@ -16,8 +16,6 @@ enable_compile = false
 batch_size = 64
 opt_step_every = 1
 
-save_every = 40
-test_every = 400000
 log_every = 40
 
 # using env `TRAIN_PLAY_PROFILE`
@@ -34,13 +32,13 @@ games = 64
 log_dir = 'test_play_logs'
 
 [dataset]
-globs = ['1v3_logs/*.json.gz']
+globs = ['1v3_logs/*.json.gz', '../logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
 num_workers = 1
 player_names_files = ['player_names.txt']
-num_epochs = 10
+num_epochs = 3
 enable_augmentation = false
 augmented_first = false
 
@@ -82,7 +80,7 @@ state_file = 'baseline.pth'
 
 [1v3]
 seed_key = -1
-games_per_iter = 32
+games_per_iter = 128
 iters = 1
 log_dir = '1v3_logs'
 
@@ -106,10 +104,10 @@ enable_rule_based_agari_guard = true
 
 [loop]
 iterations = 0
-eval_threshold = 0.0
-eval_games = 64
+eval_threshold = 0.5
+eval_games = 128
 start_from_baseline = false
-max_logs = 160
+max_logs = 640
 
 [loop.exploration]
 epsilon_initial = 0.10
