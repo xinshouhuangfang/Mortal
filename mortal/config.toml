@@ -32,7 +32,7 @@ games = 64
 log_dir = 'test_play_logs'
 
 [dataset]
-globs = ['1v3_logs/*.json.gz', '../logs/*.json.gz']
+globs = ['1v3_logs/*.json.gz', '../logs/*.json.gz', 'play_human_logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0

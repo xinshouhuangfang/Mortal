@@ -2,7 +2,7 @@ use super::{Agent, BatchifiedAgent, InvisibleState};
 use crate::mjai::{Event, EventExt};
 use crate::state::PlayerState;
 use crate::tile::Tile;
-use crate::{must_tile, tu8};
+use crate::tu8;
 
 use anyhow::{Context, Result};
 use std::io::{self, BufRead};
@@ -28,6 +28,35 @@ impl HumanAgent {
             anyhow::bail!("human_agent: input exhausted")
         }
         Ok(line.trim().to_owned())
+    }
+
+    /// Parse a discard input: a tile index (0-36 / 1-37), a tile name
+    /// (1m..9m/1p..9p/1s..9s/1z..7z), or an honor name (E/S/W/N/P/F/C).
+    /// The rules have no aka (red) tiles, so red indices/names map to the
+    /// corresponding normal tile via `deaka`.
+    fn parse_discard_tile(input: &str) -> Option<Tile> {
+        if let Ok(num) = input.parse::<usize>() {
+            let idx = if (1..=37).contains(&num) { num - 1 } else { num };
+            if idx < 37 {
+                return Some(Tile::new_unchecked(idx as u8).deaka());
+            }
+        }
+        if let Ok(tile) = input.parse::<Tile>() {
+            if tile.as_usize() < 37 {
+                return Some(tile.deaka());
+            }
+        }
+        let z = match input.to_uppercase().as_str() {
+            "E" => Some(27),
+            "S" => Some(28),
+            "W" => Some(29),
+            "N" => Some(30),
+            "P" => Some(31),
+            "F" => Some(32),
+            "C" => Some(33),
+            _ => None,
+        };
+        z.map(|id| Tile::new_unchecked(id).deaka())
     }
 
     /// Parse a user input string and return the corresponding mjai Event.
@@ -129,38 +158,29 @@ impl HumanAgent {
             "pass" | "none" if cans.can_pass() => Event::None,
             _ => {
                 if cans.can_discard {
-                    if let Ok(num) = input.parse::<usize>() {
-                        let idx = if (1..=37).contains(&num) { num - 1 } else { num };
-                        if idx < 37 {
-                            let tile = must_tile!(idx);
-                            if state.tehai()[tile.deaka().as_usize()] > 0 {
-                                let tsumogiri =
-                                    state.last_self_tsumo().is_some_and(|t| t == tile);
-                                return Ok(Event::Dahai {
-                                    actor,
-                                    pai: tile,
-                                    tsumogiri,
-                                });
-                            }
+                    if let Some(tile) = Self::parse_discard_tile(input) {
+                        let deaka = tile.deaka();
+                        if state.tehai()[deaka.as_usize()] > 0 {
+                            let tsumogiri = state
+                                .last_self_tsumo()
+                                .is_some_and(|t| t == tile || t == deaka);
+                            return Ok(Event::Dahai {
+                                actor,
+                                pai: tile,
+                                tsumogiri,
+                            });
                         }
-                    }
-                    if let Ok(tile) = input.parse::<Tile>() {
-                        if tile.as_usize() < 37 {
-                            let deaka = tile.deaka();
-                            if state.tehai()[deaka.as_usize()] > 0 {
-                                let tsumogiri = state
-                                    .last_self_tsumo()
-                                    .is_some_and(|t| t == tile || t == deaka);
-                                return Ok(Event::Dahai {
-                                    actor,
-                                    pai: tile,
-                                    tsumogiri,
-                                });
-                            }
-                        }
+                        anyhow::bail!("你手里没有 {tile}")
                     }
                 }
-                anyhow::bail!("invalid input or action not available: {input}")
+                let discards: Vec<String> = (0..34)
+                    .filter(|&t| state.tehai()[t] > 0)
+                    .map(|t| Tile::new_unchecked(t as u8).to_string())
+                    .collect();
+                anyhow::bail!(
+                    "invalid input or action not available: {input}. 可打: {}",
+                    discards.join(" ")
+                )
             }
         })
     }
