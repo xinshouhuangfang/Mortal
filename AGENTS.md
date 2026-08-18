@@ -45,7 +45,11 @@ deep reinforcement learning. Code is licensed AGPL-3.0-or-later.
 
 - `cargo build --release` — build; the game logic (libriichi) needs pyo3 env.
 - `cargo test`, `cargo bench` (Criterion, in libriichi).
-- `cargo build -p libriichi` — build/check just the core crate.
+- `cargo build -p libriichi --lib` — build/check the core crate (Python
+  extension module `libriichi.so`; needs pyo3 env).
+- `cargo build -p libriichi --bins --no-default-features` — build the
+  standalone binaries (`stat`, `validate_logs`). Do NOT enable the default
+  `pymod` feature here, or they fail to link against libpython.
 - Python engine: invoked via the `mortal/` scripts (e.g. `mortal/train.py`),
   picking config through `MORTAL_CFG`.
 - `mdbook serve` inside `docs/` — local docs preview.
