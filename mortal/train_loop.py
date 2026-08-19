@@ -55,6 +55,7 @@ def load_engine(cfg, device, *, boltzmann_epsilon=0, boltzmann_temp=1, top_p=1):
 def main():
     loop = config['loop']
     iterations = loop.get('iterations', 0)
+    challenge_enabled = loop.get('challenge', True)
     challenge_games = loop.get('challenge_games', 128)
     challenge_threshold = loop.get('challenge_threshold', 0.1)
 
@@ -89,25 +90,28 @@ def main():
         )
 
         # 2. mortal as challenger vs 3 baseline models
-        challenger = load_engine(challenger_cfg, device)
-        champion = load_engine(champion_cfg, device)
-        env = OneVsThree(disable_progress_bar = False)
-        seeds = challenge_games // 4
-        total_score = env.py_vs_py(
-            challenger = challenger,
-            champion = champion,
-            seed_start = (10000 + (iteration - 1) * seeds, seed_key),
-            seed_count = seeds,
-        )
-        games = seeds * 4
-        avg_score = total_score / games
-        logging.info(f'challenge: total_score={total_score} avg_score={avg_score:.4f} (threshold={challenge_threshold})')
+        if challenge_enabled:
+            challenger = load_engine(challenger_cfg, device)
+            champion = load_engine(champion_cfg, device)
+            env = OneVsThree(disable_progress_bar = False)
+            seeds = challenge_games // 4
+            total_score = env.py_vs_py(
+                challenger = challenger,
+                champion = champion,
+                seed_start = (10000 + (iteration - 1) * seeds, seed_key),
+                seed_count = seeds,
+            )
+            games = seeds * 4
+            avg_score = total_score / games
+            logging.info(f'challenge: total_score={total_score} avg_score={avg_score:.4f} (threshold={challenge_threshold})')
 
-        # 3. stop training once the challenge succeeds
-        if avg_score > challenge_threshold:
-            logging.info(f'challenge succeeded: avg_score={avg_score:.4f} > {challenge_threshold}, stop training')
-            return
-        logging.info(f'challenge failed: avg_score={avg_score:.4f} <= {challenge_threshold}, train again')
+            # 3. stop training once the challenge succeeds
+            if avg_score > challenge_threshold:
+                logging.info(f'challenge succeeded: avg_score={avg_score:.4f} > {challenge_threshold}, stop training')
+                return
+            logging.info(f'challenge failed: avg_score={avg_score:.4f} <= {challenge_threshold}, train again')
+        else:
+            logging.info('challenge disabled, skipping mortal vs 3 baseline models')
 
 if __name__ == '__main__':
     try:

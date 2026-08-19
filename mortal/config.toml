@@ -46,6 +46,7 @@ file_batch_size = 15
 reserve_ratio = 0.0
 num_workers = 1
 player_names_files = ['player_names.txt']
+num_epochs = 1
 enable_augmentation = false
 augmented_first = false
 
@@ -111,6 +112,7 @@ enable_rule_based_agari_guard = true
 
 [loop]
 iterations = 0
-challenge_games = 1024
+challenge = false
+challenge_games = 128
 challenge_threshold = 0.1
 start_from_baseline = false
