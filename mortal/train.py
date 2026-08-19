@@ -40,7 +40,6 @@ def train():
     file_batch_size = config['dataset']['file_batch_size']
     reserve_ratio = config['dataset']['reserve_ratio']
     num_workers = config['dataset']['num_workers']
-    num_epochs = config['dataset']['num_epochs']
     enable_augmentation = config['dataset']['enable_augmentation']
     augmented_first = config['dataset']['augmented_first']
     eps = config['optim']['eps']
@@ -150,7 +149,6 @@ def train():
             file_batch_size = file_batch_size,
             reserve_ratio = reserve_ratio,
             player_names = player_names,
-            num_epochs = num_epochs,
             enable_augmentation = enable_augmentation,
             augmented_first = augmented_first,
         )
