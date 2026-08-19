@@ -40,6 +40,7 @@ def train():
     file_batch_size = config['dataset']['file_batch_size']
     reserve_ratio = config['dataset']['reserve_ratio']
     num_workers = config['dataset']['num_workers']
+    num_epochs = config['dataset']['num_epochs']
     enable_augmentation = config['dataset']['enable_augmentation']
     augmented_first = config['dataset']['augmented_first']
     eps = config['optim']['eps']
@@ -111,10 +112,7 @@ def train():
     all_q_target = torch.zeros((log_every, batch_size), device=device, dtype=torch.float32)
     idx = 0
 
-    def train_epoch():
-        nonlocal steps
-        nonlocal idx
-
+    def preload_dataset():
         player_names_set = set()
         for filename in config['dataset']['player_names_files']:
             with open(filename) as f:
@@ -149,29 +147,42 @@ def train():
             file_batch_size = file_batch_size,
             reserve_ratio = reserve_ratio,
             player_names = player_names,
+            num_epochs = num_epochs,
             enable_augmentation = enable_augmentation,
             augmented_first = augmented_first,
         )
 
-        # Preload the whole dataset into memory once, then feed the GPU from a
-        # producer thread so the H2D copies overlap with the forward/backward,
-        # keeping the GPU saturated.
+        # Preload the whole dataset into memory once, then let each train_epoch
+        # feed the GPU from the same tensors.
         t_preload = datetime.now()
         try:
             obs_all, actions_all, masks_all, steps_all, rewards_all = file_data.preload()
         except ValueError as ex:
             logging.warning(f'training skipped: {ex}')
-            return
+            return None
         n_total = actions_all.shape[0]
         logging.info(
             f'preloaded {n_total:,} samples in {(datetime.now() - t_preload).total_seconds():.1f}s'
         )
 
-        obs_all = torch.as_tensor(obs_all)
-        actions_all = torch.as_tensor(actions_all)
-        masks_all = torch.as_tensor(masks_all)
-        steps_all = torch.as_tensor(steps_all)
-        rewards_all = torch.as_tensor(rewards_all)
+        return (
+            torch.as_tensor(obs_all),
+            torch.as_tensor(actions_all),
+            torch.as_tensor(masks_all),
+            torch.as_tensor(steps_all),
+            torch.as_tensor(rewards_all),
+            n_total,
+        )
+
+    dataset = preload_dataset()
+    if dataset is None:
+        return
+    obs_all, actions_all, masks_all, steps_all, rewards_all, n_total = dataset
+    num_batches = n_total // batch_size
+
+    def train_epoch():
+        nonlocal steps
+        nonlocal idx
 
         pb = tqdm(total=None, desc='TRAIN')
         log_dqn_loss = 0
@@ -247,7 +258,6 @@ def train():
                     stats[k] = 0
                 idx = 0
 
-        num_batches = n_total // batch_size
         perm = torch.randperm(n_total)
 
         # use a dedicated stream for H2D copies so they overlap with the
@@ -311,8 +321,8 @@ def train():
         torch.save(state, state_file)
         logging.info(f'training done, saved at step {steps:,}')
 
-    # only run one epoch for offline for easier control
-    for i in range(1):
+    # train multiple epochs on the preloaded dataset (loaded once above)
+    for i in range(1000):
         train_epoch()
         gc.collect()
     # torch.cuda.empty_cache()
