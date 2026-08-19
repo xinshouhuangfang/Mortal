@@ -14,7 +14,6 @@ class FileDatasetsIter(IterableDataset):
         reserve_ratio = 0,
         player_names = None,
         excludes = None,
-        num_epochs = 1,
         enable_augmentation = False,
         augmented_first = False,
     ):
@@ -26,7 +25,6 @@ class FileDatasetsIter(IterableDataset):
         self.reserve_ratio = reserve_ratio
         self.player_names = player_names
         self.excludes = excludes
-        self.num_epochs = num_epochs
         self.enable_augmentation = enable_augmentation
         self.augmented_first = augmented_first
         self.iterator = None
