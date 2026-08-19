@@ -2,7 +2,6 @@ use super::{Agent, BatchifiedAgent, InvisibleState};
 use crate::mjai::{Event, EventExt};
 use crate::state::PlayerState;
 use crate::tile::Tile;
-use crate::tu8;
 
 use anyhow::{Context, Result};
 use std::io::{self, BufRead};
@@ -119,16 +118,11 @@ impl HumanAgent {
             }
             "daiminkan" if cans.can_daiminkan => {
                 let pai = state.last_kawa_tile().context("no last kawa tile")?;
-                let is_aka = match pai.as_u8() {
-                    tu8!(5mr) | tu8!(5pr) | tu8!(5sr) => true,
-                    _ => false,
-                };
-                let consumed = if is_aka { [pai.deaka(); 3] } else { [pai.akaize(), pai, pai] };
                 Event::Daiminkan {
                     actor,
                     target: cans.target_actor,
                     pai,
-                    consumed,
+                    consumed: [pai.deaka(); 3],
                 }
             }
             "kakan" if cans.can_kakan => {
@@ -139,7 +133,7 @@ impl HumanAgent {
                 let tile = candidates[0];
                 Event::Kakan {
                     actor,
-                    pai: tile.akaize(),
+                    pai: tile.deaka(),
                     consumed: [tile.deaka(); 3],
                 }
             }
@@ -151,7 +145,7 @@ impl HumanAgent {
                 let tile = candidates[0];
                 Event::Ankan {
                     actor,
-                    consumed: [tile.akaize(), tile, tile, tile],
+                    consumed: [tile.deaka(); 4],
                 }
             }
             "ryukyoku" if cans.can_ryukyoku => Event::Ryukyoku { deltas: None },

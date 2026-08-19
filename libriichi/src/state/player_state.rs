@@ -8,6 +8,7 @@ use std::iter;
 use anyhow::Result;
 use derivative::Derivative;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use serde_json as json;
 use tinyvec::{ArrayVec, TinyVec};
 
@@ -249,5 +250,77 @@ kawa:
             self.last_kawa_tile,
             self.tiles_left,
         )
+    }
+}
+
+impl PlayerState {
+    /// Build a Python dict with the raw observable state for a GUI human
+    /// agent (hand, rivers, melds, scores, legal actions, etc.).
+    pub fn gui_state_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+
+        let tehai: Vec<String> = self
+            .tehai
+            .iter()
+            .enumerate()
+            .flat_map(|(idx, &count)| {
+                let tile = Tile::new_unchecked(idx as u8).to_string();
+                std::iter::repeat(tile).take(count as usize)
+            })
+            .collect();
+        d.set_item("tehai", tehai)?;
+
+        let kawa: Vec<Vec<String>> = self
+            .kawa_overview
+            .iter()
+            .map(|k| k.iter().map(|t| t.to_string()).collect())
+            .collect();
+        d.set_item("kawa", kawa)?;
+
+        let fuuro: Vec<Vec<Vec<String>>> = self
+            .fuuro_overview
+            .iter()
+            .map(|m| {
+                m.iter()
+                    .map(|mel| mel.iter().map(|t| t.to_string()).collect())
+                    .collect()
+            })
+            .collect();
+        d.set_item("fuuro", fuuro)?;
+
+        d.set_item("scores", self.scores)?;
+        d.set_item("last_self_tsumo", self.last_self_tsumo.map(|t| t.to_string()))?;
+        d.set_item("last_kawa_tile", self.last_kawa_tile.map(|t| t.to_string()))?;
+        d.set_item("kyoku", self.kyoku + 1)?;
+        d.set_item("honba", self.honba)?;
+        d.set_item("kyotaku", self.kyotaku)?;
+        d.set_item("oya", self.oya)?;
+        d.set_item("player_id", self.player_id)?;
+        d.set_item("bakaze", self.bakaze.to_string())?;
+        d.set_item("jikaze", self.jikaze.to_string())?;
+        d.set_item("shanten", self.shanten)?;
+        d.set_item("tiles_left", self.tiles_left)?;
+        d.set_item("is_menzen", self.is_menzen)?;
+        d.set_item("at_turn", self.at_turn)?;
+        d.set_item("riichi_declared", self.riichi_declared)?;
+
+        let cans = self.last_cans;
+        let cans_dict = PyDict::new(py);
+        cans_dict.set_item("can_discard", cans.can_discard)?;
+        cans_dict.set_item("can_chi_low", cans.can_chi_low)?;
+        cans_dict.set_item("can_chi_mid", cans.can_chi_mid)?;
+        cans_dict.set_item("can_chi_high", cans.can_chi_high)?;
+        cans_dict.set_item("can_pon", cans.can_pon)?;
+        cans_dict.set_item("can_daiminkan", cans.can_daiminkan)?;
+        cans_dict.set_item("can_kakan", cans.can_kakan)?;
+        cans_dict.set_item("can_ankan", cans.can_ankan)?;
+        cans_dict.set_item("can_riichi", cans.can_riichi)?;
+        cans_dict.set_item("can_tsumo_agari", cans.can_tsumo_agari)?;
+        cans_dict.set_item("can_ron_agari", cans.can_ron_agari)?;
+        cans_dict.set_item("can_ryukyoku", cans.can_ryukyoku)?;
+        cans_dict.set_item("target_actor", cans.target_actor)?;
+        d.set_item("cans", cans_dict)?;
+
+        Ok(d)
     }
 }

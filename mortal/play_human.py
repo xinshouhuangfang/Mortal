@@ -47,24 +47,38 @@ def main():
     parser = argparse.ArgumentParser(description='人类 vs Mortal AI(你坐东家)')
     parser.add_argument('--state', default='mortal.pth', help='模型权重文件(默认 mortal.pth)')
     parser.add_argument('--log_dir', default='play_human_logs', help='牌谱保存目录')
+    parser.add_argument('--gui', action='store_true', help='使用图形界面(tkinter)')
     args = parser.parse_args()
 
     device = torch.device(config['control']['device'])
     engine = build_engine(args.state, device)
 
-    print('你将作为东家(座位0)对战 3 个 Mortal AI,共 1 局。')
-    print('每次轮到你时,按提示输入:牌名(如 1m, 5p, E)或数字,')
-    print('或指令 riichi / tsumo / ron / chi_l / chi_m / chi_h / pon /')
-    print('daiminkan / kakan / ankan / ryukyoku / pass / none。')
-    print()
+    if args.gui:
+        from human_gui import run_gui
+        seed_key = secrets.randbits(16)
+        scores = run_gui(
+            engine=engine,
+            log_dir=args.log_dir,
+            seed_start=(60000, seed_key),
+            state_file=args.state,
+        )
+        if scores is None:
+            print('已中止(窗口关闭时游戏未结束)')
+            return
+    else:
+        print('你将作为东家(座位0)对战 3 个 Mortal AI,共 1 局。')
+        print('每次轮到你时,按提示输入:牌名(如 1m, 5p, E)或数字,')
+        print('或指令 riichi / tsumo / ron / chi_l / chi_m / chi_h / pon /')
+        print('daiminkan / kakan / ankan / ryukyoku / pass / none。')
+        print()
 
-    env = OneVsThree(disable_progress_bar=True, log_dir=args.log_dir)
-    seed_key = secrets.randbits(16)
-    scores = env.human_vs_py(
-        engine=engine,
-        seed_start=(60000, seed_key),
-        seed_count=1,
-    )
+        env = OneVsThree(disable_progress_bar=True, log_dir=args.log_dir)
+        seed_key = secrets.randbits(16)
+        scores = env.human_vs_py(
+            engine=engine,
+            seed_start=(60000, seed_key),
+            seed_count=1,
+        )
 
     print()
     print('===== 结果(每局净分差 = 终局分 - 25000) =====')

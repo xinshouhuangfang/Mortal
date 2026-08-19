@@ -114,6 +114,34 @@ impl OneVsThree {
         })
     }
 
+    /// Plays `seed_count` single hanchans with a Python GUI human engine fixed
+    /// at seat 0 (East) against the given engine at seats 1/2/3. Returns the
+    /// per-game net score deltas (final score - 25000) of each player.
+    pub fn human_gui_vs_py(
+        &self,
+        human: PyObject,
+        engine: PyObject,
+        seed_start: (u64, u64),
+        seed_count: u64,
+        py: Python<'_>,
+    ) -> Result<Vec<[i32; 4]>> {
+        py.allow_threads(move || {
+            let results = self.run_batch_with_layout(
+                |player_ids| new_py_agent(human, player_ids),
+                |player_ids| new_py_agent(engine, player_ids),
+                seed_start,
+                seed_count,
+                1,
+                &[[0, 1, 1, 1]],
+            )?;
+
+            Ok(results
+                .iter()
+                .map(|r| r.scores.map(|s| s - 25000))
+                .collect())
+        })
+    }
+
     /// Returns the rankings of the challenger (python agent in this case).
     pub fn py_vs_ako(
         &self,
