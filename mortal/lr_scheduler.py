@@ -27,3 +27,13 @@ class LinearWarmUpCosineAnnealingLR(LambdaLR):
             cos_max_steps = self.max_steps - self.warm_up_steps
             return self.final + 0.5 * (self.peak - self.final) * (1 + math.cos(cos_steps / cos_max_steps * math.pi))
         return self.final
+
+    def load_state_dict(self, state_dict):
+        # peak/final/warm_up_steps/... are instance attributes and thus get
+        # baked into state_dict; restore only the bookkeeping fields so that
+        # the values from config.toml take effect.
+        state_dict = dict(state_dict)
+        for key in ('init', 'peak', 'final', 'warm_up_steps', 'max_steps', 'offset', 'epoch_size'):
+            state_dict.pop(key, None)
+        super().load_state_dict(state_dict)
+        self._last_lr = [base_lr * self._step_inner(self.last_epoch) for base_lr in self.base_lrs]
