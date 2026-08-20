@@ -29,6 +29,7 @@ def train():
     batch_size = config['control']['batch_size']
     opt_step_every = config['control']['opt_step_every']
     log_every = config['control']['log_every']
+    save_every = config['control']['save_every']
     min_q_weight = config['cql']['min_q_weight']
 
     device = torch.device(config['control']['device'])
@@ -180,6 +181,20 @@ def train():
     obs_all, actions_all, masks_all, steps_all, rewards_all, n_total = dataset
     num_batches = n_total // batch_size
 
+    def save_checkpoint():
+        state = {
+            'mortal': mortal.state_dict(),
+            'current_dqn': dqn.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'scheduler': scheduler.state_dict(),
+            'scaler': scaler.state_dict(),
+            'steps': steps,
+            'timestamp': datetime.now().timestamp(),
+            'config': config,
+        }
+        torch.save(state, state_file)
+        logging.info(f'checkpoint saved at step {steps:,}')
+
     def train_epoch():
         nonlocal steps
         nonlocal idx
@@ -232,6 +247,9 @@ def train():
                 optimizer.zero_grad(set_to_none=True)
             scheduler.step()
             pb.update(1)
+
+            if steps % save_every == 0:
+                save_checkpoint()
 
             if steps % log_every == 0:
                 logging.info(
@@ -307,19 +325,6 @@ def train():
         pb.close()
         if producer_error:
             raise producer_error[0]
-
-        state = {
-            'mortal': mortal.state_dict(),
-            'current_dqn': dqn.state_dict(),
-            'optimizer': optimizer.state_dict(),
-            'scheduler': scheduler.state_dict(),
-            'scaler': scaler.state_dict(),
-            'steps': steps,
-            'timestamp': datetime.now().timestamp(),
-            'config': config,
-        }
-        torch.save(state, state_file)
-        logging.info(f'training done, saved at step {steps:,}')
 
     # train multiple epochs on the preloaded dataset (loaded once above)
     for i in range(1000000):

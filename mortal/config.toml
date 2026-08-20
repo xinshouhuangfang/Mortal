@@ -17,6 +17,7 @@ batch_size = 512
 opt_step_every = 1
 
 log_every = 400
+save_every = 400
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
@@ -46,7 +47,7 @@ file_batch_size = 15
 reserve_ratio = 0.0
 num_workers = 1
 player_names_files = ['player_names.txt']
-num_epochs = 5
+num_epochs = 10
 enable_augmentation = false
 augmented_first = false
 
