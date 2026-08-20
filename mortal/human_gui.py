@@ -99,6 +99,7 @@ class HumanGuiApp:
         self.done_event = done_event
         self.scores_queue = scores_queue
         self.state = None
+        self._closed = False
 
         root.title('人类 vs Mortal AI')
         root.protocol('WM_DELETE_WINDOW', self.on_close)
@@ -216,24 +217,46 @@ class HumanGuiApp:
         self.root.after(30, self.poll)
 
     def check_done(self):
+        if self._closed:
+            return
         if self.done_event.is_set():
             print('[gui] 游戏线程已结束', file=sys.stderr)
-            scores = None
-            try:
-                scores = self.scores_queue.get_nowait()
-            except queue.Empty:
-                pass
-            if isinstance(scores, Exception):
-                print(f'[gui] 游戏线程异常: {scores}', file=sys.stderr)
-                import traceback
-                traceback.print_exc(file=sys.stderr)
-                self.result_label.config(text=f'游戏出错: {scores}')
-            elif scores is not None:
-                print('[gui] 显示结果', file=sys.stderr)
-                self.show_result(scores)
-                self._disable_all()
-        else:
-            self.root.after(200, self.check_done)
+            on_done = getattr(self, 'on_game_done', None)
+            if on_done is not None:
+                on_done()
+            else:
+                scores = None
+                try:
+                    scores = self.scores_queue.get_nowait()
+                except queue.Empty:
+                    pass
+                if isinstance(scores, Exception):
+                    self.result_label.config(text=f'游戏出错: {scores}')
+                elif scores is not None:
+                    self.show_result(scores)
+                    self._disable_all()
+        self.root.after(200, self.check_done)
+
+    def reset_for_new_game(self):
+        self.root.title('人类 vs Mortal AI')
+        self.result_label.config(text='', font=('TkDefaultFont', 11, 'bold'), fg='black')
+        for child in self.action['hand_frame'].winfo_children():
+            child.destroy()
+        self.action['hand'] = []
+        for pos in ('top', 'left', 'right', 'bottom'):
+            frame = getattr(self, pos + '_frame')
+            for child in frame['river_frame'].winfo_children():
+                child.destroy()
+        for corner in self.corners.values():
+            corner['label'].config(text='')
+            for child in corner['melds'].winfo_children():
+                child.destroy()
+        for b in self.action['buttons'].values():
+            b.config(state=tk.DISABLED)
+        self.center['last_discard'].config(image=None)
+        self.center['status'].config(text='')
+        self.waiting_action = False
+        self.state = None
 
     def _disable_all(self):
         for pos in ('top', 'left', 'right', 'bottom'):
@@ -272,6 +295,7 @@ class HumanGuiApp:
             print(f'[gui] 双击 {tile} 被忽略:can_discard={can_discard} in_hand={in_hand}', file=sys.stderr)
 
     def on_close(self):
+        self._closed = True
         # unblock a pending react_state if the game is still running
         try:
             self.result_queue.put_nowait('__QUIT__')
@@ -405,9 +429,11 @@ class HumanGuiApp:
 
 
 def run_gui(engine, log_dir, seed_start, state_file):
-    """Run the game with a tkinter GUI. Returns the per-game net score deltas
-    (list of [human, mortal, mortal, mortal]) after the window is closed."""
+    """Run games with a tkinter GUI. After each game a dialog asks to continue
+    or exit. Returns the list of per-game net score deltas after the window
+    is closed."""
     from libriichi.arena import OneVsThree
+    from tkinter import messagebox
 
     states_queue = queue.Queue()
     result_queue = queue.Queue(maxsize=1)
@@ -419,28 +445,71 @@ def run_gui(engine, log_dir, seed_start, state_file):
     app = HumanGuiApp(root, states_queue, result_queue, done_event, scores_queue)
     root.geometry('1600x1400')
 
-    def game_thread():
-        try:
-            env = OneVsThree(disable_progress_bar=True, log_dir=log_dir)
-            scores = env.human_gui_vs_py(
-                human=human, engine=engine,
-                seed_start=seed_start, seed_count=1,
-            )
-            scores_queue.put(scores)
-            print(f'[gui] 游戏完成, scores={scores}', file=sys.stderr)
-        except Exception as ex:
-            print(f'[gui] 游戏线程异常: {ex}', file=sys.stderr)
-            import traceback
-            traceback.print_exc(file=sys.stderr)
-            scores_queue.put(ex)
-        finally:
-            done_event.set()
+    all_scores = []
+    running = {'flag': False}
+    seed = list(seed_start)
 
-    threading.Thread(target=game_thread, daemon=True).start()
+    def start_game():
+        if running['flag']:
+            return
+        running['flag'] = True
+        done_event.clear()
+        try:
+            scores_queue.get_nowait()
+        except queue.Empty:
+            pass
+
+        def game_thread():
+            try:
+                env = OneVsThree(disable_progress_bar=True, log_dir=log_dir)
+                sc = env.human_gui_vs_py(
+                    human=human, engine=engine,
+                    seed_start=tuple(seed), seed_count=1,
+                )
+                scores_queue.put(sc)
+                print(f'[gui] 游戏完成, scores={sc}', file=sys.stderr)
+            except Exception as ex:
+                print(f'[gui] 游戏线程异常: {ex}', file=sys.stderr)
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                scores_queue.put(ex)
+            finally:
+                done_event.set()
+
+        threading.Thread(target=game_thread, daemon=True).start()
+
+    def on_game_done():
+        running['flag'] = False
+        try:
+            sc = scores_queue.get_nowait()
+        except queue.Empty:
+            root.after(200, on_game_done)
+            return
+        if isinstance(sc, Exception):
+            messagebox.showerror('游戏出错', str(sc))
+            app._closed = True
+            root.destroy()
+            return
+        all_scores.append(sc[0])
+        s = sc[0]
+        winner = max(range(4), key=lambda k: s[k])
+        text = (f'本局结果(净分差):\n'
+                f'你(东家) {s[0]:+d} | Mortal {s[1]:+d} / {s[2]:+d} / {s[3]:+d}\n')
+        if s[winner] > 0:
+            text += '你 和牌!' if winner == 0 else f'Mortal(座{winner}) 和牌'
+        else:
+            text += '流局'
+        text += f'\n累计 {len(all_scores)} 局,你总净分 {sum(g[0] for g in all_scores):+d}'
+        again = messagebox.askyesno('游戏结束', text + '\n\n继续下一局?')
+        if again:
+            seed[0] += 1
+            app.reset_for_new_game()
+            start_game()
+        else:
+            app._closed = True
+            root.destroy()
+
+    app.on_game_done = on_game_done
+    root.after(100, start_game)
     root.mainloop()
-    if scores_queue.empty():
-        return None
-    scores = scores_queue.get()
-    if isinstance(scores, Exception):
-        raise scores
-    return scores
+    return all_scores if all_scores else None
