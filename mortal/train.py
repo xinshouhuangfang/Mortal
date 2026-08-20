@@ -322,7 +322,7 @@ def train():
         logging.info(f'training done, saved at step {steps:,}')
 
     # train multiple epochs on the preloaded dataset (loaded once above)
-    for i in range(4):
+    for i in range(1000000):
         train_epoch()
         gc.collect()
     # torch.cuda.empty_cache()
