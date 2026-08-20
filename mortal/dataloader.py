@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from torch.utils.data import IterableDataset
 from libriichi.dataset import GameplayLoader
+from common import tqdm
 
 class FileDatasetsIter(IterableDataset):
     def __init__(
@@ -51,36 +52,40 @@ class FileDatasetsIter(IterableDataset):
                     excludes = self.excludes,
                     augmented = augmented,
                 )
-                data = self.loader.load_gz_log_files(self.file_list)
-                for file in data:
-                    for game in file:
-                        obs_list = game.take_obs()
-                        game_size = len(obs_list)
-                        if game_size == 0:
-                            continue
-                        obs = np.stack(obs_list)
-                        actions = np.asarray(game.take_actions())
-                        masks = np.stack(game.take_masks())
-                        _ = game.take_at_kyoku()
-                        dones = np.asarray(game.take_dones())
-                        apply_gamma = np.asarray(game.take_apply_gamma())
+                with tqdm(total = len(self.file_list), unit = 'file', desc = 'preload') as pb:
+                    for i in range(0, len(self.file_list), self.file_batch_size):
+                        chunk = self.file_list[i:i + self.file_batch_size]
+                        data = self.loader.load_gz_log_files(chunk)
+                        for file in data:
+                            for game in file:
+                                obs_list = game.take_obs()
+                                game_size = len(obs_list)
+                                if game_size == 0:
+                                    continue
+                                obs = np.stack(obs_list)
+                                actions = np.asarray(game.take_actions())
+                                masks = np.stack(game.take_masks())
+                                _ = game.take_at_kyoku()
+                                dones = np.asarray(game.take_dones())
+                                apply_gamma = np.asarray(game.take_apply_gamma())
 
-                        player_id = game.take_player_id()
-                        final_scores = np.asarray(game.take_grp().take_final_scores())
+                                player_id = game.take_player_id()
+                                final_scores = np.asarray(game.take_grp().take_final_scores())
 
-                        kyoku_rewards = (final_scores[player_id] - 25000) // 1000
+                                kyoku_rewards = (final_scores[player_id] - 25000) // 1000
 
-                        steps_to_done = np.zeros(game_size, dtype=np.int64)
-                        for i in reversed(range(game_size)):
-                            if not dones[i]:
-                                steps_to_done[i] = steps_to_done[i + 1] + int(apply_gamma[i])
+                                steps_to_done = np.zeros(game_size, dtype=np.int64)
+                                for i in reversed(range(game_size)):
+                                    if not dones[i]:
+                                        steps_to_done[i] = steps_to_done[i + 1] + int(apply_gamma[i])
 
-                        obs_l.append(obs)
-                        actions_l.append(actions)
-                        masks_l.append(masks)
-                        steps_l.append(steps_to_done)
-                        rewards_l.append(np.full(game_size, kyoku_rewards, dtype=np.int64))
-                        total += game_size
+                                obs_l.append(obs)
+                                actions_l.append(actions)
+                                masks_l.append(masks)
+                                steps_l.append(steps_to_done)
+                                rewards_l.append(np.full(game_size, kyoku_rewards, dtype=np.int64))
+                                total += game_size
+                            pb.update(1)
 
         if total == 0:
             raise ValueError('no training samples found')
