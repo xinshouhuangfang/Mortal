@@ -19,7 +19,7 @@ def trainee_score(path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='filter self-play games by trainee total score')
+    parser = argparse.ArgumentParser(description='filter self-play games where trainee ranks first')
     parser.add_argument('--src', default='self_play_logs')
     parser.add_argument('--dst', default='train_logs')
     args = parser.parse_args()
@@ -39,7 +39,7 @@ def main():
     copied = 0
     for seed, paths in sorted(groups.items()):
         total = sum(trainee_score(p) for p in paths)
-        if total != 0:
+        if total > 0:
             for p in paths:
                 shutil.copy2(p, dst / p.name)
                 copied += 1
