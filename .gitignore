@@ -19,3 +19,4 @@ file_index.pth
 mortal.pth
 mortal/test_play_logs/
 self_play_logs
+mortal/train_logs/
