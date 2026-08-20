@@ -74,18 +74,18 @@ def main():
 
         env = OneVsThree(disable_progress_bar=True, log_dir=args.log_dir)
         seed_key = secrets.randbits(16)
-        scores = env.human_vs_py(
+        scores = [env.human_vs_py(
             engine=engine,
             seed_start=(60000, seed_key),
             seed_count=1,
-        )
+        )]
 
     print()
     print('===== 结果(每局净分差 = 终局分 - 25000) =====')
     total = 0
     for i, s in enumerate(scores, 1):
         total += s[0]
-        print(f'半庄{i}: 你(东家) {s[0]:+6d} | Mortal {s[1]:+6d} / {s[2]:+6d} / {s[3]:+6d}')
+        print(f'第{i}局: 你(东家) {s[0]:+6d} | Mortal {s[1]:+6d} / {s[2]:+6d} / {s[3]:+6d}')
     print(f'你的总净分: {total:+d}')
 
 if __name__ == '__main__':
