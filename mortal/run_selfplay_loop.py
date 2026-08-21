@@ -21,7 +21,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='repeatedly self-play and select logs until train_logs is full'
     )
-    parser.add_argument('target', nargs='?', type=int, default=10000)
+    parser.add_argument('target', nargs='?', type=int, default=4000)
     args = parser.parse_args()
 
     count = count_files()
