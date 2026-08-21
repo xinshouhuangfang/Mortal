@@ -390,15 +390,29 @@ class HumanGuiApp:
         for child in hand_frame.winfo_children():
             child.destroy()
         action['hand'] = []
-        for i, tile in enumerate(tehai):
+        others = list(tehai)
+        if drawn is not None and drawn in others:
+            others.remove(drawn)
+        col = 0
+        for tile in others:
             lab = tk.Label(hand_frame, cursor='hand2' if discardable else 'arrow')
             img = self.images.get(tile)
             lab.config(image=img)
             lab.image = img
-            if tile == drawn:
-                lab.config(highlightbackground='#e11', highlightcolor='#e11', highlightthickness=3)
             lab.bind('<Double-Button-1>', lambda e, t=tile: self.on_tile_discard(t))
-            lab.grid(row=0, column=i)
+            lab.grid(row=0, column=col)
+            action['hand'].append(lab)
+            col += 1
+        if drawn is not None:
+            spacer = tk.Label(hand_frame, text='   ')
+            spacer.grid(row=0, column=col)
+            col += 1
+            lab = tk.Label(hand_frame, cursor='hand2' if discardable else 'arrow')
+            img = self.images.get(drawn)
+            lab.config(image=img)
+            lab.image = img
+            lab.bind('<Double-Button-1>', lambda e, t=drawn: self.on_tile_discard(drawn))
+            lab.grid(row=0, column=col)
             action['hand'].append(lab)
 
         for action_key, key in CAN_ACTION.items():
