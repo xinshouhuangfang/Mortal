@@ -33,7 +33,7 @@ games = 64
 log_dir = 'test_play_logs'
 
 [self_play]
-games = 256
+games = 1024
 log_dir = 'self_play_logs'
 boltzmann_epsilon = 0.1
 boltzmann_temp = 2.5
@@ -41,13 +41,13 @@ top_p = 1.0
 seed_key = -1
 
 [dataset]
-globs = ['train_logs/*.json.gz']
+globs = ['logs/*.json.gz', 'play_human_logs/*.json.gz', 'train_logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
 num_workers = 1
 player_names_files = ['player_names.txt']
-num_epochs = 5
+num_epochs = 1
 enable_augmentation = false
 augmented_first = false
 
