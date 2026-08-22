@@ -7,6 +7,8 @@ def train():
     import json
     import queue
     import random
+    import secrets
+    import shutil
     import threading
     import torch
     from os import path
@@ -21,6 +23,8 @@ def train():
     from dataloader import FileDatasetsIter
     from lr_scheduler import LinearWarmUpCosineAnnealingLR
     from model import Brain, DQN
+    from engine import MortalEngine
+    from libriichi.arena import OneVsThree
     from libriichi.consts import obs_shape
     from config import config
 
@@ -30,6 +34,11 @@ def train():
     opt_step_every = config['control']['opt_step_every']
     log_every = config['control']['log_every']
     save_every = config['control']['save_every']
+    test_every = config['control']['test_every']
+    assert test_every == 0 or test_every % save_every == 0, (
+        f'test_every ({test_every}) must be a multiple of save_every ({save_every}) or 0'
+    )
+    train_epochs = config['control'].get('train_epochs', 1)
     min_q_weight = config['cql']['min_q_weight']
 
     device = torch.device(config['control']['device'])
@@ -85,6 +94,7 @@ def train():
 
     steps = 0
     state_file = config['control']['state_file']
+    best_state_file = config['control']['best_state_file']
     if path.exists(state_file):
         state = torch.load(state_file, weights_only=True, map_location=device)
         timestamp = datetime.fromtimestamp(state['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
@@ -125,7 +135,17 @@ def train():
         if path.exists(file_index):
             index = torch.load(file_index, weights_only=True)
             file_list = index['file_list']
+            existing = [f for f in file_list if path.exists(f)]
+            if len(existing) != len(file_list):
+                logging.warning(
+                    f'file index stale: dropped {len(file_list) - len(existing)} missing files'
+                )
+                file_list = existing
+                torch.save({'file_list': file_list}, file_index)
         else:
+            file_list = None
+
+        if not file_list:
             logging.info('building file index...')
             file_list = []
             for pat in config['dataset']['globs']:
@@ -195,6 +215,71 @@ def train():
         torch.save(state, state_file)
         logging.info(f'checkpoint saved at step {steps:,}')
 
+    def load_engine_from_state(engine_state_file, engine_device, name):
+        state = torch.load(engine_state_file, weights_only=True, map_location=torch.device('cpu'))
+        cfg = state['config']
+        version = cfg['control'].get('version', 1)
+        conv_channels = cfg['resnet']['conv_channels']
+        num_blocks = cfg['resnet']['num_blocks']
+        brain = Brain(version=version, conv_channels=conv_channels, num_blocks=num_blocks).eval()
+        dqn_net = DQN(version=version).eval()
+        brain.load_state_dict(state['mortal'])
+        dqn_net.load_state_dict(state['current_dqn'])
+        return MortalEngine(
+            brain,
+            dqn_net,
+            is_oracle = False,
+            version = version,
+            device = engine_device,
+            enable_amp = True,
+            enable_rule_based_agari_guard = True,
+            name = name,
+        )
+
+    def test_and_update_best():
+        # test_every is a multiple of save_every, so a fresh mortal.pth has just
+        # been saved; play it against the baseline and promote to best.pth if it
+        # beats the best score recorded so far.
+        baseline_file = config['baseline']['test']['state_file']
+        if not path.exists(baseline_file):
+            logging.warning(f'test play skipped: baseline {baseline_file} not found')
+            return
+
+        test_cfg = config['test_play']
+        games = test_cfg['games']
+        seed_count = games // 4
+        log_dir = path.abspath(test_cfg['log_dir'])
+        if path.isdir(log_dir):
+            shutil.rmtree(log_dir)
+
+        challenger = load_engine_from_state(state_file, device, 'mortal')
+        champion = load_engine_from_state(baseline_file, device, 'baseline')
+        env = OneVsThree(disable_progress_bar = False, log_dir = log_dir)
+        total_score = env.py_vs_py(
+            challenger = challenger,
+            champion = champion,
+            seed_start = (10000, secrets.randbits(64)),
+            seed_count = seed_count,
+        )
+        avg_score = total_score / games
+        logging.info(
+            f'test play at step {steps:,}: {games} games, '
+            f'total_score={total_score}, avg_score={avg_score:.4f}/game'
+        )
+
+        best_score = 0.0
+        if path.exists(best_state_file):
+            best_state = torch.load(best_state_file, weights_only=True, map_location=torch.device('cpu'))
+            best_score = best_state.get('test_score', 0.0)
+
+        if total_score > best_score:
+            state = torch.load(state_file, weights_only=True, map_location=torch.device('cpu'))
+            state['test_score'] = total_score
+            torch.save(state, best_state_file)
+            logging.info(f'best_state updated at step {steps:,}: {total_score} > {best_score}')
+        else:
+            logging.info(f'best_state not updated at step {steps:,}: {total_score} <= {best_score}')
+
     def train_epoch():
         nonlocal steps
         nonlocal idx
@@ -250,6 +335,9 @@ def train():
 
             if steps % save_every == 0:
                 save_checkpoint()
+
+            if test_every > 0 and steps % test_every == 0:
+                test_and_update_best()
 
             if steps % log_every == 0:
                 logging.info(
@@ -327,7 +415,7 @@ def train():
             raise producer_error[0]
 
     # train multiple epochs on the preloaded dataset (loaded once above)
-    for i in range(1000000):
+    for i in range(train_epochs):
         train_epoch()
         gc.collect()
     # torch.cuda.empty_cache()

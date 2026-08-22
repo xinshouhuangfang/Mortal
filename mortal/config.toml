@@ -5,7 +5,7 @@
 version = 4
 
 state_file = 'mortal.pth'
-best_state_file = 'baseline.pth'
+best_state_file = 'best.pth'
 tensorboard_dir = 'tensorboard'
 
 device = 'auto'
@@ -16,8 +16,10 @@ enable_compile = false
 batch_size = 512
 opt_step_every = 1
 
-log_every = 400
-save_every = 400
+log_every = 50
+save_every = 50
+test_every = 500
+train_epochs = 40
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
@@ -29,7 +31,7 @@ top_p = 1.0
 repeats = 1
 
 [test_play]
-games = 64
+games = 1000
 log_dir = 'test_play_logs'
 
 [self_play]
@@ -113,7 +115,4 @@ enable_rule_based_agari_guard = true
 
 [loop]
 iterations = 0
-challenge = false
-challenge_games = 128
-challenge_threshold = 0.1
-start_from_baseline = false
+selfplay_target = 2000
