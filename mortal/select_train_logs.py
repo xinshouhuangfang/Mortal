@@ -19,7 +19,7 @@ def trainee_score(path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='filter self-play games where trainee ranks first')
+    parser = argparse.ArgumentParser(description='filter self-play games where trainee wins')
     parser.add_argument('--src', default='self_play_logs')
     parser.add_argument('--dst', default='train_logs')
     args = parser.parse_args()
@@ -28,26 +28,16 @@ def main():
     dst = Path(args.dst)
     dst.mkdir(parents=True, exist_ok=True)
 
-    groups = {}
-    for path in sorted(src.glob('*.json.gz')):
-        parts = path.stem.rsplit('.', 1)[0].split('_')
-        seed = (parts[0], parts[1])
-        groups.setdefault(seed, []).append(path)
-
-    selected = 0
-    skipped = 0
     copied = 0
-    for seed, paths in sorted(groups.items()):
-        total = sum(trainee_score(p) for p in paths)
-        if total > 0:
-            for p in paths:
-                shutil.copy2(p, dst / p.name)
-                copied += 1
-            selected += 1
+    skipped = 0
+    for path in sorted(src.glob('*.json.gz')):
+        if trainee_score(path) > 0:
+            shutil.copy2(path, dst / path.name)
+            copied += 1
         else:
             skipped += 1
 
-    print(f'groups total: {len(groups)}, selected: {selected}, skipped: {skipped}')
+    print(f'files total: {copied + skipped}, selected: {copied}, skipped: {skipped}')
     print(f'files copied to {dst}: {copied}')
 
 
