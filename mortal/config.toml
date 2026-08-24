@@ -43,7 +43,7 @@ top_p = 1.0
 seed_key = -1
 
 [dataset]
-globs = ['logs/*.json.gz', 'play_human_logs/*.json.gz', 'train_logs/*.json.gz']
+globs = ['../logs/*.json.gz', 'play_human_logs/*.json.gz', 'train_logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
