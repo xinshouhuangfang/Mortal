@@ -19,7 +19,7 @@ opt_step_every = 1
 log_every = 50
 save_every = 50
 test_every = 0
-train_epochs = 40
+train_epochs = 10
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
@@ -92,7 +92,7 @@ state_file = 'baseline.pth'
 [1v3]
 seed_key = -1
 games_per_iter = 1000
-iters = 10
+iters = 1
 log_dir = '1v3_logs'
 
 [1v3.challenger]
