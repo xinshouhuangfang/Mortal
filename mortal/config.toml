@@ -5,7 +5,7 @@
 version = 4
 
 state_file = 'mortal.pth'
-best_state_file = 'baseline.pth'
+best_state_file = 'best.pth'
 tensorboard_dir = 'tensorboard'
 
 device = 'auto'
@@ -16,8 +16,10 @@ enable_compile = false
 batch_size = 512
 opt_step_every = 1
 
-log_every = 400
-save_every = 400
+log_every = 50
+save_every = 50
+test_every = 0
+train_epochs = 20
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
@@ -29,11 +31,11 @@ top_p = 1.0
 repeats = 1
 
 [test_play]
-games = 64
+games = 1000
 log_dir = 'test_play_logs'
 
 [self_play]
-games = 256
+games = 1024
 log_dir = 'self_play_logs'
 boltzmann_epsilon = 0.1
 boltzmann_temp = 2.5
@@ -41,13 +43,13 @@ top_p = 1.0
 seed_key = -1
 
 [dataset]
-globs = ['train_logs/*.json.gz']
+globs = ['../logs/*.json.gz', 'play_human_logs/*.json.gz', 'train_logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
 num_workers = 1
 player_names_files = ['player_names.txt']
-num_epochs = 5
+num_epochs = 1
 enable_augmentation = false
 augmented_first = false
 
@@ -90,7 +92,7 @@ state_file = 'baseline.pth'
 [1v3]
 seed_key = -1
 games_per_iter = 1000
-iters = 10
+iters = 1
 log_dir = '1v3_logs'
 
 [1v3.challenger]
@@ -113,7 +115,4 @@ enable_rule_based_agari_guard = true
 
 [loop]
 iterations = 0
-challenge = false
-challenge_games = 128
-challenge_threshold = 0.1
-start_from_baseline = false
+selfplay_target = 2000
