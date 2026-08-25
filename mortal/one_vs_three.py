@@ -1,5 +1,6 @@
 import prelude
 
+import argparse
 import torch
 import secrets
 from model import Brain, DQN
@@ -8,8 +9,13 @@ from libriichi.arena import OneVsThree
 from config import config
 
 def main():
+    parser = argparse.ArgumentParser(description='挑战者 vs 冠军(1v3)')
+    parser.add_argument('games', nargs='?', type=int, default=None,
+                        help='对战局数(不传则用 config 中 1v3.games_per_iter 配置)')
+    args = parser.parse_args()
+
     cfg = config['1v3']
-    games_per_iter = cfg['games_per_iter']
+    games_per_iter = args.games if args.games is not None else cfg['games_per_iter']
     seeds_per_iter = games_per_iter // 4
     iters = cfg['iters']
     log_dir = cfg['log_dir']
