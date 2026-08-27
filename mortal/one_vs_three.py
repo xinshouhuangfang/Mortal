@@ -21,7 +21,7 @@ def main():
     seeds_per_iter = games_per_iter // 4
     iters = cfg['iters']
     log_dir = cfg['log_dir']
-    use_akochan = false
+    use_akochan = False
 
     if (key := cfg.get('seed_key', -1)) == -1:
         key = secrets.randbits(16)
