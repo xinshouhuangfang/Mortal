@@ -1,5 +1,4 @@
 use super::{Grp, Invisible};
-use crate::chi_type::ChiType;
 use crate::mjai::Event;
 use crate::state::PlayerState;
 use std::array;
@@ -292,11 +291,7 @@ impl Gameplay {
         } = ctx;
 
         let cur = &wnd[0];
-        let next = if matches!(wnd[1], Event::ReachAccepted { .. } | Event::Dora { .. }) {
-            &wnd[2]
-        } else {
-            &wnd[1]
-        };
+        let next = &wnd[1];
 
         match cur {
             Event::StartGame { names, .. } => {
@@ -340,17 +335,6 @@ impl Gameplay {
         let mut kan_select = None;
         let label_opt = match *next {
             Event::Dahai { pai, .. } => Some(pai.as_usize()),
-            Event::Reach { .. } => Some(37),
-            Event::Chi {
-                actor,
-                pai,
-                consumed,
-                ..
-            } if actor == self.player_id => match ChiType::new(consumed, pai) {
-                ChiType::Low => Some(38),
-                ChiType::Mid => Some(39),
-                ChiType::High => Some(40),
-            },
             Event::Pon { actor, .. } if actor == self.player_id => Some(41),
             Event::Daiminkan { actor, pai, .. } if actor == self.player_id => {
                 if config.always_include_kan_select {

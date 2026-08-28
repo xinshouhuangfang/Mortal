@@ -94,10 +94,6 @@ impl Invisible {
                 Event::Ankan { .. } | Event::Kakan { .. } | Event::Daiminkan { .. } => {
                     from_rinshan = true;
                 }
-                Event::Dora { dora_marker } => {
-                    cur.dora_indicators.push(*dora_marker);
-                    unknown_tiles[dora_marker.as_usize()] -= 1;
-                }
                 Event::Hora {
                     ura_markers: Some(ura),
                     ..
