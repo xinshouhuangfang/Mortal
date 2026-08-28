@@ -15,8 +15,8 @@ deep reinforcement learning. Code is licensed AGPL-3.0-or-later.
   `exe-wrapper`, `play`.
 - `libriichi/` — the core. A Rust crate (`[lib] name = "riichi"`) exposing a
   Python module via **PyO3 0.25** (crate-type `cdylib` + `rlib`). Builds the
-  compiled game/dataset backend. Deps: `boomphf`, `ndarray`, `numpy`, `rayon`,
-  `criterion` (bench). Edition 2024. Build script uses `pyo3-build-config`.
+  compiled game/dataset backend. Deps: `boomphf`, `ndarray`, `numpy`, `rayon`.
+  Edition 2024. Build script uses `pyo3-build-config`.
   Features: `default = ["pymod", "mimalloc"]`, plus `abi3` and
   `sp_reproduce_cpp_ver`.
 - `exe-wrapper/` — small wrapper crate (likely the distributed engine binary).
@@ -31,7 +31,6 @@ deep reinforcement learning. Code is licensed AGPL-3.0-or-later.
 - `log-viewer/` — browser tool for viewing game logs (`index.example.html`,
   `render_log.py`, `files/`). Note: `files/` is excluded from typos checks.
 - `docs/` — mdbook (`book.toml`) documentation; user + online + perf + ref.
-- `tests`/benches — `libriichi/benches/bench.rs` via Criterion.
 
 ## Conventions
 
@@ -44,7 +43,7 @@ deep reinforcement learning. Code is licensed AGPL-3.0-or-later.
 ## Useful commands (run from repo root)
 
 - `cargo build --release` — build; the game logic (libriichi) needs pyo3 env.
-- `cargo test`, `cargo bench` (Criterion, in libriichi).
+- `cargo test`.
 - `cargo build -p libriichi --lib` — build/check the core crate (Python
   extension module `libriichi.so`; needs pyo3 env).
 - `cargo build -p libriichi --bins --no-default-features` — build the

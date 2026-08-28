@@ -1,4 +1,3 @@
-mod akochan;
 mod batchify;
 mod defs;
 mod human;
@@ -8,7 +7,6 @@ mod mortal;
 mod py_agent;
 mod tsumogiri;
 
-pub use akochan::AkochanAgent;
 pub use batchify::BatchifiedAgent;
 pub use defs::{Agent, BatchAgent, InvisibleState};
 pub use human::HumanAgent;

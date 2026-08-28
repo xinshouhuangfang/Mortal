@@ -103,7 +103,7 @@ impl Point {
 
     #[inline]
     #[must_use]
-    pub const fn tsumo_total(self, _is_oya: bool) -> i32 {
+    pub const fn tsumo_total(self) -> i32 {
         self.tsumo_ko * 3
     }
 
@@ -114,47 +114,6 @@ impl Point {
             ron: 6000 * count,
             tsumo_ko: 2000 * count,
             tsumo_oya: 2000 * count,
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::iter::once;
-
-    #[test]
-    fn table() {
-        for fu in (20..=110).step_by(10).chain(once(25)) {
-            for han in 1..=14 {
-                if han == 1 && fu < 30 {
-                    continue;
-                }
-
-                let base_points = if han >= 13 {
-                    8000
-                } else if han >= 11 {
-                    6000
-                } else if han >= 8 {
-                    4000
-                } else if han >= 6 {
-                    3000
-                } else if han >= 5 {
-                    2000
-                } else {
-                    (fu * 2_i32.pow(2 + han)).min(2000)
-                };
-                let get_points = |mult| (base_points * mult + 99) / 100 * 100;
-
-                let points_ko = Point::calc(false, fu as u8, han as u8);
-                assert_eq!(points_ko.tsumo_ko, get_points(1), "{fu}/{han}");
-                assert_eq!(points_ko.tsumo_oya, get_points(2), "{fu}/{han}");
-                assert_eq!(points_ko.ron, get_points(4), "{fu}/{han}");
-
-                let points_oya = Point::calc(true, fu as u8, han as u8);
-                assert_eq!(points_oya.tsumo_ko, get_points(2), "{fu}/{han}");
-                assert_eq!(points_oya.ron, get_points(6), "{fu}/{han}");
-            }
         }
     }
 }

@@ -52,9 +52,7 @@ pub struct BoardState {
     oya: u8,
     player_states: [PlayerState; 4],
 
-    can_renchan: bool,
     has_hora: bool,
-    has_abortive_ryukyoku: bool,
     kyoku_deltas: [i32; 4],
 
     // 本地规则：牌山 84 张（136 总牌 - 52 手牌）。发牌触发条件见 `step()`。
@@ -62,8 +60,6 @@ pub struct BoardState {
     tiles_left: u8,
     tsumo_actor: u8,
     kans: u8,
-    check_four_kan: bool,
-    paos: [Option<u8>; 4],
 
     log: Vec<EventExt>,
 }
@@ -127,9 +123,6 @@ impl BoardState {
                 Poll::End => {
                     self.add_log_no_meta(Event::EndKyoku);
                     vec_add_assign(&mut self.board.scores, &self.kyoku_deltas);
-                    if self.has_abortive_ryukyoku {
-                        self.can_renchan = true;
-                    }
                     return Ok(poll);
                 }
             };
@@ -149,10 +142,7 @@ impl BoardState {
     pub const fn end(&self) -> KyokuResult {
         KyokuResult {
             kyoku: self.board.kyoku,
-            // honba: self.board.honba,
-            can_renchan: self.can_renchan,
             has_hora: self.has_hora,
-            has_abortive_ryukyoku: self.has_abortive_ryukyoku,
             kyotaku_left: self.board.kyotaku,
             scores: self.board.scores,
         }
@@ -215,7 +205,6 @@ impl BoardState {
 
     fn exhaustive_ryukyoku(&mut self) {
         let deltas = [0; 4];
-        self.can_renchan = self.player_states[self.oya as usize].shanten() == 0;
 
         vec_add_assign(&mut self.kyoku_deltas, &deltas);
         let ryukyoku = Event::Ryukyoku {
@@ -234,8 +223,6 @@ impl BoardState {
         self.has_hora = true;
 
         let is_ron = single_actor != single_target;
-        let mut honba_left = self.board.honba as i32; // mut in case of multi-ron
-        let mut kyotaku_point = self.board.kyotaku as i32 * 1000; // ditto
         self.board.kyotaku = 0; // Unlike honba, kyotaku in self will be cleared
 
         // 本地规则：无里宝牌，结算时始终传空 `ura_indicators`。由于
@@ -245,7 +232,6 @@ impl BoardState {
             .iter()
             .map(|ev| match ev.event {
                 Event::Hora { actor, .. } => {
-                    self.can_renchan |= actor == self.oya;
                     let point =
                         self.player_states[actor as usize].agari_points(is_ron, &ura_indicators);
                     Some(point).transpose()
@@ -254,56 +240,11 @@ impl BoardState {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        if is_ron {
-            // Multi-ron will be handled
-            points
-                .into_iter()
-                .enumerate()
-                .cycle()
-                .skip(single_target as usize + 1)
-                .take(3)
-                .filter_map(|(actor, v)| v.map(|point| (actor, point)))
-                .for_each(|(actor, point)| {
-                    let mut deltas = [0; 4];
-                    if let Some(pao_target) = self.paos[actor] {
-                        // As per [Tenhou's rule](https://tenhou.net/man/#RULE):
-                        //
-                        // > 複合役満を含む得点を、ツモ＝全額・ロン＝折半で支払
-                        // > う。積み棒は包。
-                        deltas[pao_target as usize] = -point.ron / 2 - honba_left * 300;
-                        deltas[single_target as usize] -= point.ron / 2; // they may be the same person
-                    } else {
-                        deltas[single_target as usize] = -point.ron - honba_left * 300;
-                    }
-                    deltas[actor] = point.ron + kyotaku_point + honba_left * 300;
-
-                    kyotaku_point = 0;
-                    honba_left = 0;
-
-                    vec_add_assign(&mut self.kyoku_deltas, &deltas);
-                    let ura_markers = if self.player_states[actor].self_riichi_accepted() {
-                        ura_indicators.clone()
-                    } else {
-                        Default::default()
-                    };
-
-                    let hora = Event::Hora {
-                        actor: actor as u8,
-                        target: single_target,
-                        deltas: Some(deltas),
-                        ura_markers: Some(ura_markers),
-                    };
-                    self.add_log_no_meta(hora);
-                    // No need to broadcast
-                });
-            return Ok(());
-        }
-
         let point = points[single_actor as usize].unwrap();
         let mut deltas = [0; 4];
-        deltas.fill(-point.tsumo_ko - honba_left * 100);
+        deltas.fill(-point.tsumo_ko);
         deltas[single_actor as usize] =
-            point.tsumo_total(single_actor == self.oya) + kyotaku_point + honba_left * 300;
+            point.tsumo_total();
 
         vec_add_assign(&mut self.kyoku_deltas, &deltas);
         let ura_markers = if self.player_states[single_actor as usize].self_riichi_accepted() {
@@ -322,16 +263,6 @@ impl BoardState {
         // No need to broadcast
 
         Ok(())
-    }
-
-    #[inline]
-    fn abortive_ryukyoku(&mut self) {
-        let ryukyoku = Event::Ryukyoku {
-            deltas: Some([0; 4]),
-        };
-        self.add_log_no_meta(ryukyoku);
-        self.has_abortive_ryukyoku = true;
-        // No need to broadcast
     }
 
     fn step(&mut self, reactions: &[EventExt; 4]) -> Result<Poll> {
@@ -362,12 +293,6 @@ impl BoardState {
                 _ => 2,
             })
             .unwrap(); // Unwrap is safe because it is proven non-empty
-
-        if self.check_four_kan && !matches!(ev.event, Event::Hora { .. }) {
-            // 四槓散了
-            self.abortive_ryukyoku();
-            return Ok(Poll::End);
-        }
 
         match ev.event {
             Event::None => {
@@ -490,7 +415,7 @@ impl BoardState {
             });
 
         let mut encode_tile = |idx: usize, tile: Tile| {
-            let tile_id = tile.deaka().as_usize();
+            let tile_id = tile.as_usize();
             arr.assign(idx, tile_id, 1.);
             if tile.is_aka() {
                 arr.fill(idx + 1, 1.);

@@ -226,7 +226,7 @@ impl PlayerState {
             self.update_shanten_discards();
         }
 
-        if self.waits[pai.deaka().as_usize()] {
+        if self.waits[pai.as_usize()] {
             self.last_cans.can_tsumo_agari = true;
         }
 
@@ -290,15 +290,15 @@ impl PlayerState {
             self.at_rinshan = false;
             self.at_ippatsu = false;
             self.can_w_riichi = false;
-            self.discarded_tiles[pai.deaka().as_usize()] = true;
+            self.discarded_tiles[pai.as_usize()] = true;
 
             // Furiten state will be permanent once riichi is accepted,
             // and of course, the shanten number will be frozen as well,
             // so the calculations are skipped here.
             if true {
-                if self.next_shanten_discards[pai.deaka().as_usize()] {
+                if self.next_shanten_discards[pai.as_usize()] {
                     self.shanten -= 1;
-                } else if !self.keep_shanten_discards[pai.deaka().as_usize()] {
+                } else if !self.keep_shanten_discards[pai.as_usize()] {
                     self.update_shanten();
                 }
                 // Update is here because `self.tiles_seen` has
@@ -315,9 +315,9 @@ impl PlayerState {
             return Ok(());
         }
 
-        self.last_cans.can_pon = self.tehai[pai.deaka().as_usize()] >= 2;
+        self.last_cans.can_pon = self.tehai[pai.as_usize()] >= 2;
         self.last_cans.can_daiminkan =
-            self.kans_on_board < 4 && self.tehai[pai.deaka().as_usize()] == 3;
+            self.kans_on_board < 4 && self.tehai[pai.as_usize()] == 3;
 
         Ok(())
     }
@@ -351,10 +351,10 @@ impl PlayerState {
         for t in consumed {
             self.move_tile(t, MoveType::FuuroConsume)?;
         }
-        self.pons.push(pai.deaka().as_u8());
+        self.pons.push(pai.as_u8());
 
-        if self.tehai[pai.deaka().as_usize()] > 0 {
-            self.forbidden_tiles[pai.deaka().as_usize()] = true;
+        if self.tehai[pai.as_usize()] > 0 {
+            self.forbidden_tiles[pai.as_usize()] = true;
         }
 
         // NOTES: this is 3n+2
@@ -388,7 +388,7 @@ impl PlayerState {
         for t in consumed {
             self.move_tile(t, MoveType::FuuroConsume)?;
         }
-        self.minkans.push(pai.deaka().as_u8());
+        self.minkans.push(pai.as_u8());
 
         // The shanten number and the shape of tenpai (if any) may be
         // changed after a daiminkan.
@@ -403,7 +403,7 @@ impl PlayerState {
     fn kakan(&mut self, actor: u8, pai: Tile) -> Result<()> {
         let actor_rel = self.rel(actor);
         for fuuro in &mut self.fuuro_overview[actor_rel] {
-            if fuuro[0].deaka() == pai.deaka() {
+            if fuuro[0] == pai {
                 fuuro.push(pai);
                 break;
             }
@@ -416,7 +416,7 @@ impl PlayerState {
             self.last_kawa_tile = Some(pai); // for getting winning tile in self.agari
 
             // 槍槓
-            if !self.at_furiten && self.waits[pai.deaka().as_usize()] {
+            if !self.at_furiten && self.waits[pai.as_usize()] {
                 self.last_cans.can_ron_agari = true;
                 self.to_mark_same_cycle_furiten = Some(());
                 self.chankan_chance = Some(());
@@ -428,15 +428,15 @@ impl PlayerState {
         }
 
         self.move_tile(pai, MoveType::FuuroConsume)?;
-        self.pons.retain(|&t| t != pai.deaka().as_u8());
-        self.minkans.push(pai.deaka().as_u8());
+        self.pons.retain(|&t| t != pai.as_u8());
+        self.minkans.push(pai.as_u8());
 
         // The shanten number and the shape of tenpai (if any) may
         // be changed after an kakan, because the kan'd tile may
         // come from the existing hand.
-        if self.next_shanten_discards[pai.deaka().as_usize()] {
+        if self.next_shanten_discards[pai.as_usize()] {
             self.shanten -= 1;
-        } else if !self.keep_shanten_discards[pai.deaka().as_usize()] {
+        } else if !self.keep_shanten_discards[pai.as_usize()] {
             self.update_shanten();
         }
         self.update_waits_and_furiten();
@@ -446,7 +446,7 @@ impl PlayerState {
 
     fn ankan(&mut self, actor: u8, consumed: [Tile; 4]) -> Result<()> {
         let actor_rel = self.rel(actor);
-        let tile = consumed[0].deaka();
+        let tile = consumed[0];
         self.ankan_overview[actor_rel].push(tile);
         self.intermediate_kan.push(tile);
         self.kans_on_board += 1;
@@ -489,7 +489,7 @@ impl PlayerState {
             !tile.is_unknown(),
             "rule violation: attempt to witness an unknown tile",
         );
-        let tile_id = tile.deaka().as_usize();
+        let tile_id = tile.as_usize();
 
         let seen = &mut self.tiles_seen[tile_id];
         ensure!(
@@ -507,7 +507,7 @@ impl PlayerState {
     /// Returns an error when trying to discard or consume a tile that the
     /// player doesn't own.
     pub(super) fn move_tile(&mut self, tile: Tile, move_type: MoveType) -> Result<()> {
-        let tile_id = tile.deaka().as_usize();
+        let tile_id = tile.as_usize();
         let tehai_tile = &mut self.tehai[tile_id];
         match move_type {
             MoveType::Tsumo => {

@@ -26,7 +26,7 @@ fn main() -> anyhow::Result<()> {
 
     println!("游戏开始！\n");
 
-    let g = BatchGame::tenhou_east(true);
+    let g = BatchGame::tenhou_hanchan(true);
     let mut agents: Vec<Box<dyn BatchAgent>> = vec![
         Box::new(HumanAgent::new_batched(&[0])?),
         Box::new(Tsumogiri::new_batched(&[1, 2, 3])?),
