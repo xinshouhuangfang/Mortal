@@ -9,9 +9,8 @@ use ndarray::prelude::*;
 use numpy::{PyArray1, PyArray2};
 use pyo3::prelude::*;
 
-const SELF_KAWA_ITEM_CHANNELS: usize = 4;
-const KAWA_ITEM_CHANNELS: usize = 8;
-const MAX_NUM_TURNS: usize = 17; // aka the actual practical `MAX_TSUMOS_LEFT`
+const SELF_KAWA_ITEM_CHANNELS: usize = 2;
+const KAWA_ITEM_CHANNELS: usize = 4;
 
 struct ObsEncoderContext<'a> {
     state: &'a PlayerState,
@@ -139,12 +138,9 @@ impl<'a> ObsEncoderContext<'a> {
                     if sutehai.is_tedashi {
                         self.arr.assign(self.idx + 1, tid, v);
                     }
-                    if sutehai.is_riichi {
-                        self.arr.assign(self.idx + 2, tid, v);
-                    }
                 }
             }
-            self.idx += 3;
+            self.idx += 2;
         }
 
         let v = state.tiles_left as f32 / 84.;
@@ -369,12 +365,6 @@ impl<'a> ObsEncoderContext<'a> {
             let sutehai = k.sutehai;
             let tile_id = sutehai.tile.as_usize();
             self.arr.assign(self.idx + 1, tile_id, 1.);
-            if sutehai.tile.is_aka() {
-                self.arr.fill(self.idx + 2, 1.);
-            }
-            if sutehai.is_dora {
-                self.arr.fill(self.idx + 3, 1.);
-            }
         }
         self.idx += SELF_KAWA_ITEM_CHANNELS;
     }
@@ -382,37 +372,20 @@ impl<'a> ObsEncoderContext<'a> {
     fn encode_kawa(&mut self, item: Option<&KawaItem>) {
         if let Some(k) = item {
             if let Some(cp) = &k.chi_pon {
-                // Aka info of the chi/pon is not encoded in the kawa detail;
-                // they are included in fuuro_overview instead.
-                //
-                // This is one-hot.
-                let a = cp.consumed[0].as_usize();
-                let b = cp.consumed[1].as_usize();
-                let min = a.min(b);
-                let max = a.max(b);
-                self.arr.assign(self.idx, min, 1.);
-                self.arr.assign(self.idx + 1, max, 1.);
+                // This is one-hot. only pon
+                self.arr.assign(self.idx, cp.consumed[0].as_usize(), 1.);
             }
 
             for kan in k.kan {
                 let tile_id = kan.as_usize();
-                self.arr.assign(self.idx + 2, tile_id, 1.);
+                self.arr.assign(self.idx + 1, tile_id, 1.);
             }
 
             let sutehai = k.sutehai;
             let tile_id = sutehai.tile.as_usize();
-            self.arr.assign(self.idx + 3, tile_id, 1.);
-            if sutehai.tile.is_aka() {
-                self.arr.fill(self.idx + 4, 1.);
-            }
-            if sutehai.is_dora {
-                self.arr.fill(self.idx + 5, 1.);
-            }
+            self.arr.assign(self.idx + 2, tile_id, 1.);
             if sutehai.is_tedashi {
-                self.arr.fill(self.idx + 6, 1.);
-            }
-            if sutehai.is_riichi {
-                self.arr.fill(self.idx + 7, 1.);
+                self.arr.fill(self.idx + 3, 1.);
             }
         }
         self.idx += KAWA_ITEM_CHANNELS;
