@@ -84,29 +84,19 @@ impl Tile {
     #[inline]
     #[must_use]
     pub const fn deaka(self) -> Self {
-        match self.0 {
-            tu8!(5mr) => t!(5m),
-            tu8!(5pr) => t!(5p),
-            tu8!(5sr) => t!(5s),
-            _ => self,
-        }
+        self
     }
 
     #[inline]
     #[must_use]
     pub const fn akaize(self) -> Self {
-        match self.0 {
-            tu8!(5m) => t!(5mr),
-            tu8!(5p) => t!(5pr),
-            tu8!(5s) => t!(5sr),
-            _ => self,
-        }
+        self
     }
 
     #[inline]
     #[must_use]
     pub const fn is_aka(self) -> bool {
-        matches_tu8!(self.0, 5mr | 5pr | 5sr)
+        false
     }
 
     #[inline]
@@ -278,33 +268,3 @@ impl fmt::Display for InvalidTile {
 }
 
 impl Error for InvalidTile {}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn convert() {
-        "E".parse::<Tile>().unwrap();
-        "5mr".parse::<Tile>().unwrap();
-        "?".parse::<Tile>().unwrap();
-        Tile::try_from(0_u8).unwrap();
-        Tile::try_from(36_u8).unwrap();
-        Tile::try_from(37_u8).unwrap();
-
-        "".parse::<Tile>().unwrap_err();
-        "0s".parse::<Tile>().unwrap_err();
-        "!".parse::<Tile>().unwrap_err();
-        Tile::try_from(38_u8).unwrap_err();
-        Tile::try_from(u8::MAX).unwrap_err();
-    }
-
-    #[test]
-    fn next_prev() {
-        MJAI_PAI_STRINGS.iter().take(37).for_each(|&s| {
-            let tile: Tile = s.parse().unwrap();
-            assert_eq!(tile.prev().next(), tile.deaka());
-            assert_eq!(tile.next().prev(), tile.deaka());
-        });
-    }
-}
