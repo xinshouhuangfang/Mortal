@@ -166,7 +166,7 @@ impl Event {
 
         match self {
             Self::StartKyoku {
-                bakaze,
+                bakaze: _,
                 tehais,
                 ..
             } => {
