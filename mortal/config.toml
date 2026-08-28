@@ -3,6 +3,7 @@
 
 [control]
 version = 4
+online = false
 
 state_file = 'mortal.pth'
 best_state_file = 'best.pth'
@@ -16,19 +17,19 @@ enable_compile = false
 batch_size = 512
 opt_step_every = 1
 
+save_every = 400
+test_every = 100000
+submit_every = 400
+old_update_every = 400
 log_every = 50
-save_every = 50
-test_every = 0
 train_epochs = 20
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
 games = 800
 log_dir = 'train_play_logs'
-boltzmann_epsilon = 0.005
-boltzmann_temp = 0.05
-top_p = 1.0
 repeats = 1
+explore_rate = 1.0
 
 [test_play]
 games = 1000
@@ -37,9 +38,6 @@ log_dir = 'test_play_logs'
 [self_play]
 games = 1024
 log_dir = 'self_play_logs'
-boltzmann_epsilon = 0.1
-boltzmann_temp = 2.5
-top_p = 1.0
 seed_key = -1
 
 [dataset]
@@ -53,19 +51,19 @@ num_epochs = 1
 enable_augmentation = false
 augmented_first = false
 
+[resnet]
+conv_channels = 128
+num_blocks = 24
+
 [env]
-gamma = 1
 pts = [6.0, 4.0, 2.0, 0.0]
 
-[resnet]
-conv_channels = 192
-num_blocks = 40
-
-[cql]
-min_q_weight = 5
-
-[freeze_bn]
-mortal = false
+[policy]
+awr_beta = 1.0
+awr_clip = 100
+entropy_weight = 1e-3
+clip_ratio = 0.2
+dual_clip = 3.0
 
 [optim]
 eps = 1e-8
@@ -88,6 +86,22 @@ state_file = 'baseline.pth'
 device = 'auto'
 enable_compile = false
 state_file = 'baseline.pth'
+
+[online]
+history_window = 50
+enable_compile = false
+
+[online.remote]
+host = '127.0.0.1'
+port = 5000
+
+[online.server]
+buffer_dir = '/home/lichao/Mortal-Policy/mortal/buffer'
+drain_dir = '/home/lichao/Mortal-Policy/mortal/drain'
+sample_reuse_rate = 0
+sample_reuse_threshold = 0
+capacity = 1600
+force_sequential = false
 
 [1v3]
 seed_key = -1
