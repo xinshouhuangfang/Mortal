@@ -102,12 +102,6 @@ impl<'a> ObsEncoderContext<'a> {
             });
         self.idx += 4;
 
-        state
-            .akas_in_hand
-            .into_iter()
-            .enumerate()
-            .filter(|&(_, has_it)| has_it)
-            .for_each(|(i, _)| self.arr.fill(self.idx + i, 1.));
         self.idx += 3;
 
         for &score in &state.scores {
@@ -115,30 +109,13 @@ impl<'a> ObsEncoderContext<'a> {
             self.arr.fill(self.idx, v);
             self.idx += 1;
 
-            match self.version {
-                2 | 3 => IntegerEncoder::new(score as usize / 100, 500)
-                    .rbf_intervals(10)
-                    .encode(&mut self),
-                4 => {
-                    let v = score.clamp(0, 30_000) as f32 / 30_000.;
-                    self.arr.fill(self.idx, v);
-                    self.idx += 1;
-                }
-                _ => (),
-            }
+            let v = score.clamp(0, 30_000) as f32 / 30_000.;
+            self.arr.fill(self.idx, v);
+            self.idx += 1;
         }
 
-        let n = state.rank as usize;
-        self.arr.fill(self.idx + n, 1.);
         self.idx += 4;
 
-        let n = state.kyoku as usize;
-        match self.version {
-            // for v1, this was a mistake, it actually only uses 3 channels.
-            1 => self.arr.fill_rows(self.idx, n, 1.),
-            2 | 3 | 4 => self.arr.fill(self.idx + n, 1.),
-            _ => unreachable!(),
-        }
         self.idx += 4;
 
         let cap = match self.version {
