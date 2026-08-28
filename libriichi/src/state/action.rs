@@ -59,14 +59,14 @@ impl ActionCandidate {
     #[inline]
     #[must_use]
     pub const fn can_agari(&self) -> bool {
-        self.can_tsumo_agari || self.can_ron_agari
+        self.can_tsumo_agari
     }
 
     #[getter]
     #[inline]
     #[must_use]
     pub const fn can_pass(&self) -> bool {
-        self.can_chi() || self.can_pon || self.can_daiminkan || self.can_ron_agari
+        self.can_pon || self.can_daiminkan
     }
 
     #[getter]

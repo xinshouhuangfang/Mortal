@@ -475,20 +475,8 @@ impl<'a> ObsEncoderContext<'a> {
         }
         self.idx += 5;
 
-        if cans.can_riichi {
-            self.arr.fill(self.idx, 1.);
-        }
         self.idx += 1;
 
-        if cans.can_chi_low {
-            self.arr.fill(self.idx, 1.);
-        }
-        if cans.can_chi_mid {
-            self.arr.fill(self.idx + 1, 1.);
-        }
-        if cans.can_chi_high {
-            self.arr.fill(self.idx + 2, 1.);
-        }
         self.idx += 3;
 
         if cans.can_pon {
@@ -541,9 +529,6 @@ impl<'a> ObsEncoderContext<'a> {
         }
         self.idx += 1;
 
-        if cans.can_ryukyoku {
-            self.arr.fill(self.idx, 1.);
-        }
         self.idx += 1;
 
         if self.version == 4 {

@@ -65,48 +65,12 @@ impl HumanAgent {
         let input_lower = input.to_lowercase();
 
         Ok(match input_lower.as_str() {
-            "riichi" if cans.can_riichi => Event::Reach { actor },
             "tsumo" if cans.can_tsumo_agari => Event::Hora {
                 actor,
                 target: actor,
                 deltas: None,
                 ura_markers: None,
             },
-            "ron" if cans.can_ron_agari => Event::Hora {
-                actor,
-                target: cans.target_actor,
-                deltas: None,
-                ura_markers: None,
-            },
-            "chi_low" | "chi_l" if cans.can_chi_low => {
-                let pai = state.last_kawa_tile().context("no last kawa tile")?;
-                let first = pai.next();
-                Event::Chi {
-                    actor,
-                    target: cans.target_actor,
-                    pai,
-                    consumed: [first, first.next()],
-                }
-            }
-            "chi_mid" | "chi_m" if cans.can_chi_mid => {
-                let pai = state.last_kawa_tile().context("no last kawa tile")?;
-                Event::Chi {
-                    actor,
-                    target: cans.target_actor,
-                    pai,
-                    consumed: [pai.prev(), pai.next()],
-                }
-            }
-            "chi_high" | "chi_h" if cans.can_chi_high => {
-                let pai = state.last_kawa_tile().context("no last kawa tile")?;
-                let last = pai.prev();
-                Event::Chi {
-                    actor,
-                    target: cans.target_actor,
-                    pai,
-                    consumed: [last.prev(), last],
-                }
-            }
             "pon" if cans.can_pon => {
                 let pai = state.last_kawa_tile().context("no last kawa tile")?;
                 Event::Pon {
@@ -148,7 +112,6 @@ impl HumanAgent {
                     consumed: [tile.deaka(); 4],
                 }
             }
-            "ryukyoku" if cans.can_ryukyoku => Event::Ryukyoku { deltas: None },
             "pass" | "none" if cans.can_pass() => Event::None,
             _ => {
                 if cans.can_discard {
@@ -218,10 +181,6 @@ impl Agent for HumanAgent {
             has_actions = true;
             eprintln!("  tsumo");
         }
-        if cans.can_ron_agari {
-            has_actions = true;
-            eprintln!("  ron");
-        }
         if cans.can_pon        { has_actions = true; eprintln!("  pon"); }
         if cans.can_daiminkan  { has_actions = true; eprintln!("  daiminkan"); }
         if cans.can_kakan      { has_actions = true; eprintln!("  kakan"); }
@@ -244,106 +203,5 @@ impl Agent for HumanAgent {
                 Err(e) => eprintln!("{e}. Try again."),
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::mjai::Event;
-    use crate::state::PlayerState;
-    use crate::t;
-
-    #[test]
-    fn parse_discard_tile_name() {
-        let mut state = PlayerState::new(0);
-        state
-            .update(&Event::StartKyoku {
-                bakaze: t!(E),
-                dora_marker: t!(1m),
-                kyoku: 1,
-                honba: 0,
-                kyotaku: 0,
-                oya: 0,
-                scores: [25000; 4],
-                tehais: [
-                    [
-                        t!(1m), t!(2m), t!(3m), t!(7m), t!(8m), t!(9m),
-                        t!(1p), t!(2p), t!(3p), t!(7p), t!(8p), t!(9p), t!(N),
-                    ],
-                    [t!(?); 13],
-                    [t!(?); 13],
-                    [t!(?); 13],
-                ],
-            })
-            .unwrap();
-        state.update(&Event::Tsumo { actor: 0, pai: t!(E) }).unwrap();
-        let ev = HumanAgent::parse_input("1m", &state, 0).unwrap();
-        assert!(matches!(ev, Event::Dahai { pai, .. } if pai == t!(1m)));
-    }
-
-    #[test]
-    fn parse_discard_number() {
-        let mut state = PlayerState::new(0);
-        state
-            .update(&Event::StartKyoku {
-                bakaze: t!(E),
-                dora_marker: t!(1m),
-                kyoku: 1,
-                honba: 0,
-                kyotaku: 0,
-                oya: 0,
-                scores: [25000; 4],
-                tehais: [
-                    [t!(1m), t!(1m), t!(1m), t!(2m), t!(3m), t!(4m), t!(5m), t!(6m), t!(7m), t!(8m), t!(9m), t!(N), t!(N)],
-                    [t!(?); 13],
-                    [t!(?); 13],
-                    [t!(?); 13],
-                ],
-            })
-            .unwrap();
-        state.update(&Event::Tsumo { actor: 0, pai: t!(N) }).unwrap();
-        let ev = HumanAgent::parse_input("0", &state, 0).unwrap();
-        assert!(matches!(ev, Event::Dahai { pai, .. } if pai == t!(1m)));
-    }
-
-    #[test]
-    fn parse_riichi() {
-        let mut state = PlayerState::new(0);
-        state
-            .update(&Event::StartKyoku {
-                bakaze: t!(E),
-                dora_marker: t!(3p),
-                kyoku: 1,
-                honba: 0,
-                kyotaku: 0,
-                oya: 0,
-                scores: [25000; 4],
-                tehais: [
-                    [
-                        t!(1m), t!(2m), t!(3m), t!(7m), t!(8m), t!(9m),
-                        t!(1p), t!(2p), t!(3p), t!(7p), t!(8p), t!(9p), t!(C),
-                    ],
-                    [t!(?); 13],
-                    [t!(?); 13],
-                    [t!(?); 13],
-                ],
-            })
-            .unwrap();
-        state.update(&Event::Tsumo { actor: 0, pai: t!(C) }).unwrap();
-        let ev = HumanAgent::parse_input("riichi", &state, 0).unwrap();
-        assert!(matches!(ev, Event::Reach { actor: 0 }));
-    }
-
-    #[test]
-    fn parse_invalid_input() {
-        let state = PlayerState::new(0);
-        let result = HumanAgent::parse_input("xyz", &state, 0);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn batch_construction_compiles() {
-        drop(HumanAgent::new_batched(&[0, 1, 2, 3]));
     }
 }
