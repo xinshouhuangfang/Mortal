@@ -53,7 +53,6 @@ pub struct BoardState {
     player_states: [PlayerState; 4],
 
     has_hora: bool,
-    has_abortive_ryukyoku: bool,
     kyoku_deltas: [i32; 4],
 
     // 本地规则：牌山 84 张（136 总牌 - 52 手牌）。发牌触发条件见 `step()`。
@@ -61,7 +60,6 @@ pub struct BoardState {
     tiles_left: u8,
     tsumo_actor: u8,
     kans: u8,
-    paos: [Option<u8>; 4],
 
     log: Vec<EventExt>,
 }
@@ -146,7 +144,6 @@ impl BoardState {
             kyoku: self.board.kyoku,
             // honba: self.board.honba,
             has_hora: self.has_hora,
-            has_abortive_ryukyoku: self.has_abortive_ryukyoku,
             kyotaku_left: self.board.kyotaku,
             scores: self.board.scores,
         }
@@ -257,16 +254,7 @@ impl BoardState {
                 .filter_map(|(actor, v)| v.map(|point| (actor, point)))
                 .for_each(|(actor, point)| {
                     let mut deltas = [0; 4];
-                    if let Some(pao_target) = self.paos[actor] {
-                        // As per [Tenhou's rule](https://tenhou.net/man/#RULE):
-                        //
-                        // > 複合役満を含む得点を、ツモ＝全額・ロン＝折半で支払
-                        // > う。積み棒は包。
-                        deltas[pao_target as usize] = -point.ron / 2 - honba_left * 300;
-                        deltas[single_target as usize] -= point.ron / 2; // they may be the same person
-                    } else {
-                        deltas[single_target as usize] = -point.ron - honba_left * 300;
-                    }
+                    deltas[single_target as usize] = -point.ron - honba_left * 300;
                     deltas[actor] = point.ron + kyotaku_point + honba_left * 300;
 
                     kyotaku_point = 0;
@@ -314,16 +302,6 @@ impl BoardState {
         // No need to broadcast
 
         Ok(())
-    }
-
-    #[inline]
-    fn abortive_ryukyoku(&mut self) {
-        let ryukyoku = Event::Ryukyoku {
-            deltas: Some([0; 4]),
-        };
-        self.add_log_no_meta(ryukyoku);
-        self.has_abortive_ryukyoku = true;
-        // No need to broadcast
     }
 
     fn step(&mut self, reactions: &[EventExt; 4]) -> Result<Poll> {

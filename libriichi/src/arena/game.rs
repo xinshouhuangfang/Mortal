@@ -132,11 +132,6 @@ impl Game {
                     return Ok(());
                 }
 
-                if kyoku_result.has_abortive_ryukyoku {
-                    self.honba += 1;
-                    return self.poll(agents);
-                }
-
                 // renchan owari conditions:
                 // 1. can renchan
                 // 2. is at all-last
@@ -193,14 +188,6 @@ impl Game {
 
 impl BatchGame {
     pub const fn tenhou_hanchan(disable_progress_bar: bool) -> Self {
-        Self {
-            length: 8,
-            init_scores: [25000; 4],
-            disable_progress_bar,
-        }
-    }
-
-    pub const fn tenhou_east(disable_progress_bar: bool) -> Self {
         Self {
             length: 1,
             init_scores: [25000; 4],
