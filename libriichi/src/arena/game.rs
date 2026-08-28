@@ -44,14 +44,6 @@ struct Game {
 
     kyoku_started: bool,
     ended: bool,
-    /// Used in 西入 where the oya and another player get to 30000 at the same
-    /// time, but the game continues because oya is not the top.
-    ///
-    /// As per [Tenhou's rule](https://tenhou.net/man/#RULE):
-    ///
-    /// > サドンデスルールは、30000点(供託未収)以上になった時点で終了、ただし親の
-    /// > 連荘がある場合は連荘を優先する
-    in_renchan: bool,
 }
 
 impl Game {
@@ -62,19 +54,6 @@ impl Game {
         }
 
         if !self.kyoku_started {
-            // after W4
-            // or, after all-last
-            //   and, oya is not in renchan (if oya is in renchan, it would already have been ended in the renchan owari check)
-            //   and, anyone has more than 30k
-            if self.kyoku >= self.length + 4
-                || self.kyoku >= self.length
-                    && !self.in_renchan
-                    && self.scores.iter().any(|&s| s >= 30000)
-            {
-                self.ended = true;
-                return Ok(());
-            }
-
             let mut next_board = Board {
                 kyoku: self.kyoku,
                 honba: self.honba,
@@ -113,7 +92,6 @@ impl Game {
 
             Poll::End => {
                 self.kyoku_started = false;
-                self.in_renchan = false;
 
                 for idx in &self.indexes {
                     agents[idx.agent_idx].end_kyoku(idx.player_id_idx)?;
