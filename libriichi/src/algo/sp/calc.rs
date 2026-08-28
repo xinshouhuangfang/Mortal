@@ -674,7 +674,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
         let (fu, han) = match calc.agari(additional_yakus, num_doras)? {
             Agari::Normal { fu, han } => (fu, han),
             a @ Agari::Yakuman(_) => {
-                return Some([a.point(is_oya).tsumo_total(is_oya) as f32; 4]);
+                return Some([a.point(is_oya).tsumo_total() as f32; 4]);
             }
         };
 
@@ -725,7 +725,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
                         fu,
                         han: han + i as u8 + j as u8,
                     };
-                    *s += agari.point(is_oya).tsumo_total(is_oya) as f32 * p;
+                    *s += agari.point(is_oya).tsumo_total() as f32 * p;
                 }
             }
         } else if assume_riichi && self.sup.dora_indicators.len() > 1 {
@@ -742,7 +742,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
                         fu,
                         han: han + i as u8 + j as u8,
                     };
-                    *s += agari.point(is_oya).tsumo_total(is_oya) as f32 * p;
+                    *s += agari.point(is_oya).tsumo_total() as f32 * p;
                 }
             }
         } else {
@@ -752,7 +752,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
                     fu,
                     han: han + i as u8,
                 };
-                *s = agari.point(is_oya).tsumo_total(is_oya) as f32;
+                *s = agari.point(is_oya).tsumo_total() as f32;
             }
         }
 

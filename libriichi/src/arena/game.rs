@@ -98,23 +98,11 @@ impl Game {
                 }
 
                 let kyoku_result = self.board.end();
-                self.kyotaku = kyoku_result.kyotaku_left;
                 self.scores = kyoku_result.scores;
 
                 let logs = self.board.take_log();
                 self.game_log.push(logs);
 
-                let has_tobi = self.scores.iter().any(|&s| s < 0);
-                if has_tobi {
-                    self.ended = true;
-                    return Ok(());
-                }
-
-                // renchan owari conditions:
-                // 1. can renchan
-                // 2. is at all-last
-                // 3. oya has at least 30000
-                // 4. oya is the top
                 self.ended = true;
                 return Ok(());
             }
@@ -125,10 +113,6 @@ impl Game {
 
     fn commit(&mut self, agents: &mut [Box<dyn BatchAgent>]) -> Result<Option<GameResult>> {
         if self.ended {
-            if self.kyotaku > 0 {
-                *self.scores.iter_mut().min_by_key(|s| -**s).unwrap() += self.kyotaku as i32 * 1000;
-            }
-
             let names = array::from_fn(|i| agents[self.indexes[i].agent_idx].name());
             let game_result = GameResult {
                 names,

@@ -142,7 +142,6 @@ impl BoardState {
     pub const fn end(&self) -> KyokuResult {
         KyokuResult {
             kyoku: self.board.kyoku,
-            // honba: self.board.honba,
             has_hora: self.has_hora,
             kyotaku_left: self.board.kyotaku,
             scores: self.board.scores,
@@ -243,47 +242,11 @@ impl BoardState {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        if is_ron {
-            // Multi-ron will be handled
-            points
-                .into_iter()
-                .enumerate()
-                .cycle()
-                .skip(single_target as usize + 1)
-                .take(3)
-                .filter_map(|(actor, v)| v.map(|point| (actor, point)))
-                .for_each(|(actor, point)| {
-                    let mut deltas = [0; 4];
-                    deltas[single_target as usize] = -point.ron - honba_left * 300;
-                    deltas[actor] = point.ron + kyotaku_point + honba_left * 300;
-
-                    kyotaku_point = 0;
-                    honba_left = 0;
-
-                    vec_add_assign(&mut self.kyoku_deltas, &deltas);
-                    let ura_markers = if self.player_states[actor].self_riichi_accepted() {
-                        ura_indicators.clone()
-                    } else {
-                        Default::default()
-                    };
-
-                    let hora = Event::Hora {
-                        actor: actor as u8,
-                        target: single_target,
-                        deltas: Some(deltas),
-                        ura_markers: Some(ura_markers),
-                    };
-                    self.add_log_no_meta(hora);
-                    // No need to broadcast
-                });
-            return Ok(());
-        }
-
         let point = points[single_actor as usize].unwrap();
         let mut deltas = [0; 4];
-        deltas.fill(-point.tsumo_ko - honba_left * 100);
+        deltas.fill(-point.tsumo_ko);
         deltas[single_actor as usize] =
-            point.tsumo_total(single_actor == self.oya) + kyotaku_point + honba_left * 300;
+            point.tsumo_total();
 
         vec_add_assign(&mut self.kyoku_deltas, &deltas);
         let ura_markers = if self.player_states[single_actor as usize].self_riichi_accepted() {

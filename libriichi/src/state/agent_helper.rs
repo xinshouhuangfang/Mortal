@@ -337,7 +337,7 @@ impl PlayerState {
             exp_scores[target_rel] -= max_win_point.ron + self.honba as i32 * 300;
         } else {
             // The player must be ko here.
-            exp_scores[0] += max_win_point.tsumo_total(false)
+            exp_scores[0] += max_win_point.tsumo_total()
                 + self.kyotaku as i32 * 1000
                 + self.honba as i32 * 300;
             exp_scores
