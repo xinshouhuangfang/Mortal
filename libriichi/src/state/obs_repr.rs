@@ -1,6 +1,5 @@
 use super::item::KawaItem;
-use super::{PlayerState, SinglePlayerTables};
-use crate::algo::sp::{Candidate, CandidateColumn};
+use super::{PlayerState};
 use crate::array::Simple2DArray;
 use crate::consts::{ACTION_SPACE, MAX_VERSION, obs_shape};
 use crate::tile::Tile;
@@ -104,25 +103,14 @@ impl<'a> ObsEncoderContext<'a> {
 
         self.idx += 3;
 
-        for &score in &state.scores {
-            let v = score.clamp(0, 100_000) as f32 / 100_000.;
-            self.arr.fill(self.idx, v);
-            self.idx += 1;
-
-            let v = score.clamp(0, 30_000) as f32 / 30_000.;
-            self.arr.fill(self.idx, v);
-            self.idx += 1;
-        }
+        self.idx += 8;
 
         self.idx += 4;
 
         self.idx += 4;
 
-        let cap = match self.version {
-            1 | 4 => 10,
-            2 | 3 => 6,
-            _ => unreachable!(),
-        };
+        let cap = 10;
+
         let n = state.honba as usize;
         IntegerEncoder::new(n, cap)
             .rescale(self.version == 4)
@@ -134,16 +122,12 @@ impl<'a> ObsEncoderContext<'a> {
             .rbf_intervals(3)
             .encode(&mut self);
 
-        self.arr.assign(self.idx, state.bakaze.as_usize(), 1.);
-        self.arr.assign(self.idx + 1, state.jikaze.as_usize(), 1.);
         self.idx += 2;
 
-        if matches!(self.version, 2 | 3 | 4) {
-            let n = (state.bakaze.as_u8() - tu8!(E)).min(1) * 4 + state.kyoku;
-            IntegerEncoder::new(n as usize, 7)
-                .rescale(true)
-                .encode(&mut self);
-        }
+        let n = (state.bakaze.as_u8() - tu8!(E)).min(1) * 4 + state.kyoku;
+        IntegerEncoder::new(n as usize, 7)
+            .rescale(true)
+            .encode(&mut self);
 
         self.encode_tile_set(state.dora_indicators);
 
@@ -187,37 +171,21 @@ impl<'a> ObsEncoderContext<'a> {
                 .for_each(|kawa_item| self.encode_kawa(kawa_item.as_ref()));
             self.idx += (18 - player_kawa.len().min(18)) * KAWA_ITEM_CHANNELS;
 
-            match self.version {
-                2 => {
-                    for (turn, kawa_item) in player_kawa.iter().flatten().enumerate() {
-                        let row = (turn / 6).min(2);
-                        let tid = kawa_item.sutehai.tile.as_usize();
-                        self.arr.assign(self.idx + row, tid, 1.);
-                        if kawa_item.sutehai.is_tedashi {
-                            self.arr.assign(self.idx + 3 + row, tid, 1.);
-                        }
+            for (turn, kawa_item) in player_kawa.iter().enumerate() {
+                if let Some(kawa_item) = kawa_item {
+                    let sutehai = kawa_item.sutehai;
+                    let tid = sutehai.tile.as_usize();
+                    let v = (-0.2 * (max_kawa_len - 1 - turn) as f32).exp();
+                    self.arr.assign(self.idx, tid, v);
+                    if sutehai.is_tedashi {
+                        self.arr.assign(self.idx + 1, tid, v);
                     }
-                    self.idx += 6;
-                }
-                3 | 4 => {
-                    for (turn, kawa_item) in player_kawa.iter().enumerate() {
-                        if let Some(kawa_item) = kawa_item {
-                            let sutehai = kawa_item.sutehai;
-                            let tid = sutehai.tile.as_usize();
-                            let v = (-0.2 * (max_kawa_len - 1 - turn) as f32).exp();
-                            self.arr.assign(self.idx, tid, v);
-                            if sutehai.is_tedashi {
-                                self.arr.assign(self.idx + 1, tid, v);
-                            }
-                            if sutehai.is_riichi {
-                                self.arr.assign(self.idx + 2, tid, v);
-                            }
-                        }
+                    if sutehai.is_riichi {
+                        self.arr.assign(self.idx + 2, tid, v);
                     }
-                    self.idx += 3;
                 }
-                _ => (),
             }
+            self.idx += 3;
         }
 
         let v = state.tiles_left as f32 / 84.;
@@ -281,12 +249,6 @@ impl<'a> ObsEncoderContext<'a> {
                     let tile_id = tile.as_usize();
 
                     self.arr.assign(self.idx, tile_id, 1.);
-                    if tile.is_aka() {
-                        self.arr.fill(self.idx + 1, 1.);
-                    }
-                    if sutehai.is_dora {
-                        self.arr.fill(self.idx + 2, 1.);
-                    }
                 }
                 self.idx += 3;
             }
@@ -296,28 +258,12 @@ impl<'a> ObsEncoderContext<'a> {
                     let tile_id = tile.as_usize();
 
                     self.arr.assign(self.idx, tile_id, 1.);
-                    if tile.is_aka() {
-                        self.arr.fill(self.idx + 1, 1.);
-                    }
-                    if sutehai.is_dora {
-                        self.arr.fill(self.idx + 2, 1.);
-                    }
                 }
                 self.idx += 3;
             }
         }
 
-        state.riichi_declared[1..]
-            .iter()
-            .enumerate()
-            .filter(|&(_, &b)| b)
-            .for_each(|(i, _)| self.arr.fill(self.idx + i, 1.));
         self.idx += 3;
-        state.riichi_accepted[1..]
-            .iter()
-            .enumerate()
-            .filter(|&(_, &b)| b)
-            .for_each(|(i, _)| self.arr.fill(self.idx + i, 1.));
         self.idx += 3;
 
         state
@@ -328,17 +274,11 @@ impl<'a> ObsEncoderContext<'a> {
             .for_each(|(t, _)| self.arr.assign(self.idx, t, 1.));
         self.idx += 1;
 
-        if state.at_furiten {
-            self.arr.fill(self.idx, 1.);
-        }
         self.idx += 1;
 
         let n = state.shanten as usize;
         IntegerEncoder::new(n, 6).one_hot(true).encode(&mut self);
 
-        if state.riichi_accepted[0] {
-            self.arr.fill(self.idx, 1.);
-        }
         self.idx += 1;
 
         if self.at_kan_select {
@@ -353,9 +293,6 @@ impl<'a> ObsEncoderContext<'a> {
             let tile_id = tile.as_usize();
 
             self.arr.assign(self.idx, tile_id, 1.);
-            if tile.is_aka() {
-                self.arr.fill(self.idx + 1, 1.);
-            }
             if state.dora_factor[tile.as_usize()] > 0 {
                 self.arr.fill(self.idx + 2, 1.);
             }
@@ -402,10 +339,6 @@ impl<'a> ObsEncoderContext<'a> {
                     .enumerate()
                     .filter(|&(_, &c)| c)
                     .for_each(|(t, _)| self.arr.assign(self.idx + 3, t, 1.));
-            }
-
-            if state.riichi_declared[0] {
-                self.arr.fill(self.idx + 4, 1.);
             }
         }
         self.idx += 5;
@@ -466,136 +399,15 @@ impl<'a> ObsEncoderContext<'a> {
 
         self.idx += 1;
 
-        if self.version == 4 {
-            if let Ok(SinglePlayerTables { max_ev_table }) = state.single_player_tables() {
-                // Get the max EV from the table that maximizes EV, which should
-                // be the global max EV.
-                //
-                // `max_ev_table` is already sorted.
-                let max_ev = max_ev_table
-                    .first()
-                    .and_then(|c| c.exp_values.first().copied())
-                    .unwrap_or_default();
-                self.encode_ev(max_ev);
+        self.idx += 2;
 
-                // Encode required tiles.
-                if cans.can_discard {
-                    for candidate in &max_ev_table {
-                        let discard_tid = candidate.tile.as_usize();
-                        for r in &candidate.required_tiles {
-                            let required_tid = r.tile.as_usize();
-                            if candidate.shanten_down {
-                                self.arr
-                                    .assign(self.idx + 34 + discard_tid, required_tid, 1.);
-                            } else {
-                                self.arr.assign(self.idx + discard_tid, required_tid, 1.);
-                            }
-                        }
-                    }
-                    self.idx += 2 * 34;
-
-                    let max_required_tiles_tid = max_ev_table
-                        .iter()
-                        .max_by(|l, r| l.cmp(r, CandidateColumn::NotShantenDown))
-                        .unwrap()
-                        .tile
-                        
-                        .as_usize();
-                    self.arr.assign(self.idx, max_required_tiles_tid, 1.);
-                    self.idx += 2;
-                } else {
-                    self.idx += 2 * 34 + 1;
-                    for r in &max_ev_table[0].required_tiles {
-                        let required_tid = r.tile.as_usize();
-                        self.arr.assign(self.idx, required_tid, 1.);
-                    }
-                    self.idx += 1;
-                }
-
-                let ev_scale = if max_ev < 1. { 0. } else { 1. / max_ev };
-                self.encode_sp_table(max_ev_table, cans.can_discard, ev_scale);
-            } else {
-                // Use the minimal tsumo agari point as the max EV. It is
-                // minimal because we assume no uradora.
-                let min_tsumo_agari = state
-                    .agari_points(cans.can_ron_agari, &[])
-                    .map(|p| p.tsumo_total() as f32)
-                    .unwrap_or_default();
-                self.encode_ev(min_tsumo_agari);
-
-                // Skip everything else.
-                self.idx += 2 * 34 + 2 + 3 * MAX_NUM_TURNS;
-            }
-        }
+        // Skip everything else.
+        self.idx += 2 * 34 + 2 + 3 * MAX_NUM_TURNS;
 
         assert_eq!(self.idx, self.arr.rows());
         let arr = self.arr.build();
         debug_assert!(arr.iter().all(|&v| (0. ..=1.).contains(&v)));
         (arr, self.mask)
-    }
-
-    fn encode_ev(&mut self, value: f32) {
-        let v = value.clamp(0., 100_000.) / 100_000.;
-        self.arr.fill(self.idx, v);
-        let v = value.clamp(0., 30_000.) / 30_000.;
-        self.arr.fill(self.idx + 1, v);
-        self.idx += 2;
-    }
-
-    // discard table: 3 * MAX_NUM_TURNS
-    // tsumo table: 3 * MAX_NUM_TURNS
-    // best ev discard: 1
-    // best win prob discard: 1
-    fn encode_sp_table(&mut self, candidates: Vec<Candidate>, can_discard: bool, ev_scale: f32) {
-        let Some(first) = candidates
-            .first()
-            .filter(|c| c.tenpai_probs.first().is_some_and(|&p| p > 0.))
-        else {
-            // Simply do nothing when probs aren't calculated at all (when
-            // shanten >= 4) or are all zero.
-            self.idx += 3 * MAX_NUM_TURNS;
-            return;
-        };
-
-        if can_discard {
-            for candidate in candidates {
-                let tid = candidate.tile.as_usize();
-                for (turn, ((&tenpai_prob, &win_prob), &ev)) in candidate
-                    .tenpai_probs
-                    .iter()
-                    .take_while(|&&p| p > 0.)
-                    .take(MAX_NUM_TURNS)
-                    .zip(&candidate.win_probs)
-                    .zip(&candidate.exp_values)
-                    .enumerate()
-                {
-                    let mut idx = self.idx + turn;
-                    self.arr.assign(idx, tid, tenpai_prob);
-                    idx += MAX_NUM_TURNS;
-                    self.arr.assign(idx, tid, win_prob);
-                    idx += MAX_NUM_TURNS;
-                    self.arr.assign(idx, tid, (ev * ev_scale).min(1.));
-                }
-            }
-        } else {
-            for (turn, ((&tenpai_prob, &win_prob), &ev)) in first
-                .tenpai_probs
-                .iter()
-                .take_while(|&&p| p > 0.)
-                .take(MAX_NUM_TURNS)
-                .zip(&first.win_probs)
-                .zip(&first.exp_values)
-                .enumerate()
-            {
-                let mut idx = self.idx + turn;
-                self.arr.fill(idx, tenpai_prob);
-                idx += MAX_NUM_TURNS;
-                self.arr.fill(idx, win_prob);
-                idx += MAX_NUM_TURNS;
-                self.arr.fill(idx, (ev * ev_scale).min(1.));
-            }
-        }
-        self.idx += 3 * MAX_NUM_TURNS;
     }
 
     fn encode_tile_set<I>(&mut self, tiles: I)
