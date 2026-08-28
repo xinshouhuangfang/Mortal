@@ -3,8 +3,7 @@ use super::{PlayerState};
 use crate::array::Simple2DArray;
 use crate::consts::{ACTION_SPACE, MAX_VERSION, obs_shape};
 use crate::tile::Tile;
-use crate::{tu8, tuz};
-use std::num::NonZeroUsize;
+use crate::{tuz};
 
 use ndarray::prelude::*;
 use numpy::{PyArray1, PyArray2};
@@ -29,7 +28,6 @@ struct IntegerEncoder {
     cap: usize,
     one_hot: bool,
     rescale: bool,
-    rbf_intervals: Option<NonZeroUsize>,
 }
 
 impl IntegerEncoder {
@@ -39,19 +37,10 @@ impl IntegerEncoder {
             cap,
             one_hot: false,
             rescale: false,
-            rbf_intervals: None,
         }
     }
     const fn one_hot(mut self, v: bool) -> Self {
         self.one_hot = v;
-        self
-    }
-    const fn rescale(mut self, v: bool) -> Self {
-        self.rescale = v;
-        self
-    }
-    const fn rbf_intervals(mut self, v: usize) -> Self {
-        self.rbf_intervals = NonZeroUsize::new(v);
         self
     }
 
@@ -109,25 +98,13 @@ impl<'a> ObsEncoderContext<'a> {
 
         self.idx += 4;
 
-        let cap = 10;
+        self.idx += 1;
 
-        let n = state.honba as usize;
-        IntegerEncoder::new(n, cap)
-            .rescale(self.version == 4)
-            .rbf_intervals(3)
-            .encode(&mut self);
-        let n = state.kyotaku as usize;
-        IntegerEncoder::new(n, cap)
-            .rescale(self.version == 4)
-            .rbf_intervals(3)
-            .encode(&mut self);
+        self.idx += 1;
 
         self.idx += 2;
 
-        let n = (state.bakaze.as_u8() - tu8!(E)).min(1) * 4 + state.kyoku;
-        IntegerEncoder::new(n as usize, 7)
-            .rescale(true)
-            .encode(&mut self);
+        self.idx += 1;
 
         self.encode_tile_set(state.dora_indicators);
 
@@ -192,18 +169,9 @@ impl<'a> ObsEncoderContext<'a> {
         self.arr.fill(self.idx, v);
         self.idx += 1;
 
-        for count in state.doras_owned {
-            IntegerEncoder::new(count as usize, 12)
-                .rescale(true)
-                .rbf_intervals(3)
-                .encode(&mut self);
-        }
+        self.idx += 4;
 
-        let doras_unseen = state.dora_indicators.len() as u8 * 4 - state.doras_seen;
-        IntegerEncoder::new(doras_unseen as usize, 5 * 4 + 3)
-            .rescale(true)
-            .rbf_intervals(4)
-            .encode(&mut self);
+        self.idx += 1;
 
         for player_kawa_overview in &state.kawa_overview {
             self.encode_tile_set(player_kawa_overview.iter().copied());
