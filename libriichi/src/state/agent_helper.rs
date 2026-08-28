@@ -1,11 +1,10 @@
-use super::{PlayerState, SinglePlayerTables};
+use super::{PlayerState};
 use crate::algo::agari::AgariCalculator;
 use crate::algo::point::Point;
 use crate::algo::shanten;
-use crate::algo::sp::{InitState, SPCalculator};
 use crate::tile::Tile;
 use crate::vec_ops::vec_add_assign;
-use crate::{must_tile, t, tu8, tuz};
+use crate::{must_tile, t, tuz};
 
 use anyhow::{Context, Result, ensure};
 use tinyvec::array_vec;
@@ -506,93 +505,4 @@ impl PlayerState {
         shanten::calc_all(&self.tehai, self.tehai_len_div3)
     }
 
-    /// Can be called at both 3n+1 and 3n+2, but `self.real_time_shanten` must
-    /// be >= 0 and `self.tiles_left` must be >= 4.
-    ///
-    /// This function is currently highly internal.
-    pub(super) fn single_player_tables(&self) -> Result<SinglePlayerTables> {
-        ensure!(self.tiles_left >= 4, "need at least one more tsumo");
-
-        let cur_shanten = self.real_time_shanten();
-        ensure!(cur_shanten >= 0, "can't calculate an agari hand");
-
-        let mut can_discard = self.last_cans.can_discard;
-        let (tsumos_left, calc_haitei) = if can_discard {
-            (self.tiles_left / 4, self.tiles_left.is_multiple_of(4))
-        } else {
-            let target = self.rel(self.last_cans.target_actor) as u8;
-            // Let's just ignore chankan here.
-            let tiles_left_at_next_tsumo = self.tiles_left.saturating_sub(4 - target);
-            (
-                tiles_left_at_next_tsumo / 4,
-                tiles_left_at_next_tsumo.is_multiple_of(4),
-            )
-        };
-        ensure!(tsumos_left >= 1, "need at least one more tsumo");
-
-        let num_doras_in_fuuro = if self.is_menzen && self.ankan_overview[0].is_empty() {
-            0
-        } else {
-            let num_doras_in_tehai: u8 = self
-                .dora_indicators
-                .iter()
-                .map(|ind| self.tehai[ind.next().as_usize()])
-                .sum();
-            let num_akas = self.akas_in_hand.iter().filter(|&&b| b).count() as u8;
-            self.doras_owned[0] - num_doras_in_tehai - num_akas
-        };
-        let prefer_riichi = self.scores[0] >= 1000;
-        let calc_double_riichi = can_discard && self.can_w_riichi;
-
-        // If the player has an accepted riichi and has just dealt a tile
-        // (can_discard) that can't win (cur_shanten >= 0), treat the hand as if
-        // the tile has been discarded.
-        let mut tehai = self.tehai;
-        let mut akas_in_hand = self.akas_in_hand;
-        let is_discard_after_riichi = can_discard && self.riichi_accepted[0];
-        if is_discard_after_riichi {
-            let last_tsumo = self.last_self_tsumo.unwrap();
-            tehai[last_tsumo.as_usize()] -= 1;
-            match last_tsumo.as_u8() {
-                tu8!(5mr) => akas_in_hand[0] = false,
-                tu8!(5pr) => akas_in_hand[1] = false,
-                tu8!(5sr) => akas_in_hand[2] = false,
-                _ => (),
-            }
-            can_discard = false;
-        }
-
-        let init_state = InitState {
-            tehai,
-            akas_in_hand,
-            tiles_seen: self.tiles_seen,
-            akas_seen: self.akas_seen,
-        };
-        let sp_calc = SPCalculator {
-            tehai_len_div3: self.tehai_len_div3,
-            is_menzen: self.is_menzen,
-            chis: &self.chis,
-            pons: &self.pons,
-            minkans: &self.minkans,
-            ankans: &self.ankans,
-            bakaze: self.bakaze.as_u8(),
-            jikaze: self.jikaze.as_u8(),
-            num_doras_in_fuuro,
-            prefer_riichi,
-            dora_indicators: &self.dora_indicators,
-            calc_double_riichi,
-            calc_haitei,
-            sort_result: true,
-            maximize_win_prob: false,
-            calc_tegawari: false,
-            calc_shanten_down: false,
-        };
-
-        let mut max_ev_table = sp_calc.calc(init_state, can_discard, tsumos_left, cur_shanten)?;
-        if is_discard_after_riichi {
-            max_ev_table[0].tile = self.last_self_tsumo.unwrap();
-        }
-
-        Ok(SinglePlayerTables { max_ev_table })
-    }
 }
