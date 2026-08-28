@@ -354,19 +354,19 @@ impl Gameplay {
             Event::Pon { actor, .. } if actor == self.player_id => Some(41),
             Event::Daiminkan { actor, pai, .. } if actor == self.player_id => {
                 if config.always_include_kan_select {
-                    kan_select = Some(pai.deaka().as_usize());
+                    kan_select = Some(pai.as_usize());
                 }
                 Some(42)
             }
             Event::Kakan { pai, .. } => {
                 if config.always_include_kan_select || state.kakan_candidates().len() > 1 {
-                    kan_select = Some(pai.deaka().as_usize());
+                    kan_select = Some(pai.as_usize());
                 }
                 Some(42)
             }
             Event::Ankan { consumed, .. } => {
                 if config.always_include_kan_select || state.ankan_candidates().len() > 1 {
-                    kan_select = Some(consumed[0].deaka().as_usize());
+                    kan_select = Some(consumed[0].as_usize());
                 }
                 Some(42)
             }

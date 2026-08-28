@@ -151,14 +151,14 @@ impl PlayerState {
             Event::Kakan { pai, .. } => {
                 ensure!(cans.can_kakan, "cannot kakan");
                 ensure!(
-                    self.kakan_candidates.contains(&pai.deaka()),
+                    self.kakan_candidates.contains(&pai),
                     "cannot kakan {pai}",
                 );
                 self.ensure_tiles_in_hand(&[pai])?;
             }
             Event::Ankan { consumed, .. } => {
                 ensure!(cans.can_ankan, "cannot ankan");
-                let tile = consumed[0].deaka();
+                let tile = consumed[0];
                 ensure!(self.ankan_candidates.contains(&tile), "cannot ankan {tile}");
                 self.ensure_tiles_in_hand(&consumed)?;
             }
@@ -182,7 +182,7 @@ impl PlayerState {
     fn ensure_tiles_in_hand(&self, tiles: &[Tile]) -> Result<()> {
         for &tile in tiles {
             ensure!(
-                self.tehai[tile.deaka().as_usize()] > 0,
+                self.tehai[tile.as_usize()] > 0,
                 "{tile} is not in hand",
             );
             if tile.is_aka() {

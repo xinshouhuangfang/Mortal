@@ -160,7 +160,7 @@ fn process_path(path: &Path) -> Result<()> {
 
                 let ankan_candidates = states[*actor as usize].ankan_candidates();
                 ensure!(
-                    ankan_candidates.contains(&consumed[0].deaka()),
+                    ankan_candidates.contains(&consumed[0]),
                     "fails ankan_candidates at line {line}\naction: {ev:?}\nstate:\n{}",
                     states[*actor as usize].brief_info(),
                 );
@@ -174,7 +174,7 @@ fn process_path(path: &Path) -> Result<()> {
 
                 let kakan_candidates = states[*actor as usize].kakan_candidates();
                 ensure!(
-                    kakan_candidates.contains(&pai.deaka()),
+                    kakan_candidates.contains(&pai),
                     "fails kakan_candidates at line {line}\naction: {ev:?}\nstate:\n{}",
                     states[*actor as usize].brief_info(),
                 );

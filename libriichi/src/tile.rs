@@ -83,18 +83,6 @@ impl Tile {
 
     #[inline]
     #[must_use]
-    pub const fn deaka(self) -> Self {
-        self
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn akaize(self) -> Self {
-        self
-    }
-
-    #[inline]
-    #[must_use]
     pub const fn is_aka(self) -> bool {
         false
     }
@@ -126,9 +114,8 @@ impl Tile {
         if self.is_unknown() {
             return self;
         }
-        let tile = self.deaka();
-        let kind = tile.0 / 9;
-        let num = tile.0 % 9;
+        let kind = self.0 / 9;
+        let num = self.0 % 9;
 
         if kind < 3 {
             Self(kind * 9 + (num + 1) % 9)
@@ -145,9 +132,8 @@ impl Tile {
         if self.is_unknown() {
             return self;
         }
-        let tile = self.deaka();
-        let kind = tile.0 / 9;
-        let num = tile.0 % 9;
+        let kind = self.0 / 9;
+        let num = self.0 % 9;
         if kind < 3 {
             Self(kind * 9 + (num + 9 - 1) % 9)
         } else if num < 4 {
@@ -163,15 +149,13 @@ impl Tile {
         if self.is_unknown() {
             return self;
         }
-        let tile = self.deaka();
-        let tid = tile.0;
-        let kind = tid / 9;
+        let kind = self.0 / 9;
         let ret = match kind {
-            0 => Self(tid + 9),
-            1 => Self(tid - 9),
-            _ => tile,
+            0 => Self(self.0 + 9),
+            1 => Self(self.0 - 9),
+            _ => self,
         };
-        if self.is_aka() { ret.akaize() } else { ret }
+        ret
     }
 
     /// `Ordering::Equal` iff `self == other`

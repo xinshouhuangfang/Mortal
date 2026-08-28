@@ -87,7 +87,6 @@ pub struct AgariCalculator<'a> {
     pub bakaze: u8,
     pub jikaze: u8,
 
-    /// Must be deakaized
     pub winning_tile: u8,
     /// For consistency reasons, `is_ron` is only used to calculate fu and check
     /// ankou/ankan-related yakus like 三/四暗刻. It will not be used to
@@ -852,7 +851,7 @@ fn get_tile14_and_key(tiles: &[u8; 34]) -> ([u8; 14], u32) {
 /// The behavior is undefined if `tehai` is not tenpai.
 #[must_use]
 pub fn check_ankan_after_riichi(tehai: &[u8; 34], len_div3: u8, tile: Tile, strict: bool) -> bool {
-    let tile_id = tile.deaka().as_usize();
+    let tile_id = tile.as_usize();
     if tehai[tile_id] != 4 {
         return false;
     }

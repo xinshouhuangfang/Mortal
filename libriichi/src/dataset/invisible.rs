@@ -206,7 +206,7 @@ impl Invisible {
         }
 
         let mut encode_tile = |idx: usize, tile: Tile| {
-            let tile_id = tile.deaka().as_usize();
+            let tile_id = tile.as_usize();
             arr.assign(idx, tile_id, 1.);
             if tile.is_aka() {
                 arr.fill(idx + 1, 1.);

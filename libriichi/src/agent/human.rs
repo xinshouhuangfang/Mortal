@@ -31,18 +31,17 @@ impl HumanAgent {
 
     /// Parse a discard input: a tile index (0-36 / 1-37), a tile name
     /// (1m..9m/1p..9p/1s..9s/1z..7z), or an honor name (E/S/W/N/P/F/C).
-    /// The rules have no aka (red) tiles, so red indices/names map to the
-    /// corresponding normal tile via `deaka`.
+    /// The rules have no aka (red) tiles, so such inputs never occur.
     fn parse_discard_tile(input: &str) -> Option<Tile> {
         if let Ok(num) = input.parse::<usize>() {
             let idx = if (1..=37).contains(&num) { num - 1 } else { num };
             if idx < 37 {
-                return Some(Tile::new_unchecked(idx as u8).deaka());
+                return Some(Tile::new_unchecked(idx as u8));
             }
         }
         if let Ok(tile) = input.parse::<Tile>() {
             if tile.as_usize() < 37 {
-                return Some(tile.deaka());
+                return Some(tile);
             }
         }
         let z = match input.to_uppercase().as_str() {
@@ -55,7 +54,7 @@ impl HumanAgent {
             "C" => Some(33),
             _ => None,
         };
-        z.map(|id| Tile::new_unchecked(id).deaka())
+        z.map(|id| Tile::new_unchecked(id))
     }
 
     /// Parse a user input string and return the corresponding mjai Event.
@@ -77,7 +76,7 @@ impl HumanAgent {
                     actor,
                     target: cans.target_actor,
                     pai,
-                    consumed: [pai.deaka(); 2],
+                    consumed: [pai; 2],
                 }
             }
             "daiminkan" if cans.can_daiminkan => {
@@ -86,7 +85,7 @@ impl HumanAgent {
                     actor,
                     target: cans.target_actor,
                     pai,
-                    consumed: [pai.deaka(); 3],
+                    consumed: [pai; 3],
                 }
             }
             "kakan" if cans.can_kakan => {
@@ -97,8 +96,8 @@ impl HumanAgent {
                 let tile = candidates[0];
                 Event::Kakan {
                     actor,
-                    pai: tile.deaka(),
-                    consumed: [tile.deaka(); 3],
+                    pai: tile,
+                    consumed: [tile; 3],
                 }
             }
             "ankan" if cans.can_ankan => {
@@ -109,18 +108,17 @@ impl HumanAgent {
                 let tile = candidates[0];
                 Event::Ankan {
                     actor,
-                    consumed: [tile.deaka(); 4],
+                    consumed: [tile; 4],
                 }
             }
             "pass" | "none" if cans.can_pass() => Event::None,
             _ => {
                 if cans.can_discard {
                     if let Some(tile) = Self::parse_discard_tile(input) {
-                        let deaka = tile.deaka();
-                        if state.tehai()[deaka.as_usize()] > 0 {
+                        if state.tehai()[tile.as_usize()] > 0 {
                             let tsumogiri = state
                                 .last_self_tsumo()
-                                .is_some_and(|t| t == tile || t == deaka);
+                                .is_some_and(|t| t == tile);
                             return Ok(Event::Dahai {
                                 actor,
                                 pai: tile,

@@ -224,7 +224,7 @@ impl<'a> ObsEncoderContext<'a> {
             for (turn, kawa_item) in state.kawa[0].iter().enumerate() {
                 if let Some(kawa_item) = kawa_item {
                     let sutehai = kawa_item.sutehai;
-                    let tid = sutehai.tile.deaka().as_usize();
+                    let tid = sutehai.tile.as_usize();
                     let v = (-0.2 * (max_kawa_len - 1 - turn) as f32).exp();
                     self.arr.assign(self.idx, tid, v);
                 }
@@ -250,7 +250,7 @@ impl<'a> ObsEncoderContext<'a> {
                 2 => {
                     for (turn, kawa_item) in player_kawa.iter().flatten().enumerate() {
                         let row = (turn / 6).min(2);
-                        let tid = kawa_item.sutehai.tile.deaka().as_usize();
+                        let tid = kawa_item.sutehai.tile.as_usize();
                         self.arr.assign(self.idx + row, tid, 1.);
                         if kawa_item.sutehai.is_tedashi {
                             self.arr.assign(self.idx + 3 + row, tid, 1.);
@@ -262,7 +262,7 @@ impl<'a> ObsEncoderContext<'a> {
                     for (turn, kawa_item) in player_kawa.iter().enumerate() {
                         if let Some(kawa_item) = kawa_item {
                             let sutehai = kawa_item.sutehai;
-                            let tid = sutehai.tile.deaka().as_usize();
+                            let tid = sutehai.tile.as_usize();
                             let v = (-0.2 * (max_kawa_len - 1 - turn) as f32).exp();
                             self.arr.assign(self.idx, tid, v);
                             if sutehai.is_tedashi {
@@ -303,7 +303,7 @@ impl<'a> ObsEncoderContext<'a> {
         for player_fuuro in &state.fuuro_overview {
             for f in player_fuuro {
                 for tile in f {
-                    let tile_id = tile.deaka().as_usize();
+                    let tile_id = tile.as_usize();
                     let i = (0..4)
                         .find(|&i| self.arr.get(self.idx + i, tile_id) == 0.)
                         .unwrap();
@@ -337,7 +337,7 @@ impl<'a> ObsEncoderContext<'a> {
             for &player_last_tedashi in &state.last_tedashis[1..] {
                 if let Some(sutehai) = player_last_tedashi {
                     let tile = sutehai.tile;
-                    let tile_id = tile.deaka().as_usize();
+                    let tile_id = tile.as_usize();
 
                     self.arr.assign(self.idx, tile_id, 1.);
                     if tile.is_aka() {
@@ -352,7 +352,7 @@ impl<'a> ObsEncoderContext<'a> {
             for &player_riichi_sutehai in &state.riichi_sutehais[1..] {
                 if let Some(sutehai) = player_riichi_sutehai {
                     let tile = sutehai.tile;
-                    let tile_id = tile.deaka().as_usize();
+                    let tile_id = tile.as_usize();
 
                     self.arr.assign(self.idx, tile_id, 1.);
                     if tile.is_aka() {
@@ -409,13 +409,13 @@ impl<'a> ObsEncoderContext<'a> {
             let tile = state
                 .last_kawa_tile
                 .expect("building chi/pon/daiminkan/ron feature without any kawa tile");
-            let tile_id = tile.deaka().as_usize();
+            let tile_id = tile.as_usize();
 
             self.arr.assign(self.idx, tile_id, 1.);
             if tile.is_aka() {
                 self.arr.fill(self.idx + 1, 1.);
             }
-            if state.dora_factor[tile.deaka().as_usize()] > 0 {
+            if state.dora_factor[tile.as_usize()] > 0 {
                 self.arr.fill(self.idx + 2, 1.);
             }
 
@@ -435,13 +435,7 @@ impl<'a> ObsEncoderContext<'a> {
                 .enumerate()
                 .filter(|&(_, &c)| c)
                 .for_each(|(t, _)| {
-                    let deaka_t = match t as u8 {
-                        tu8!(5mr) => tuz!(5m),
-                        tu8!(5pr) => tuz!(5p),
-                        tu8!(5sr) => tuz!(5s),
-                        _ => t,
-                    };
-                    self.arr.assign(self.idx, deaka_t, 1.);
+                    self.arr.assign(self.idx, t, 1.);
                     if !self.at_kan_select {
                         self.mask[t] = true;
                     }
@@ -546,9 +540,9 @@ impl<'a> ObsEncoderContext<'a> {
                 // Encode required tiles.
                 if cans.can_discard {
                     for candidate in &max_ev_table {
-                        let discard_tid = candidate.tile.deaka().as_usize();
+                        let discard_tid = candidate.tile.as_usize();
                         for r in &candidate.required_tiles {
-                            let required_tid = r.tile.deaka().as_usize();
+                            let required_tid = r.tile.as_usize();
                             if candidate.shanten_down {
                                 self.arr
                                     .assign(self.idx + 34 + discard_tid, required_tid, 1.);
@@ -564,14 +558,14 @@ impl<'a> ObsEncoderContext<'a> {
                         .max_by(|l, r| l.cmp(r, CandidateColumn::NotShantenDown))
                         .unwrap()
                         .tile
-                        .deaka()
+                        
                         .as_usize();
                     self.arr.assign(self.idx, max_required_tiles_tid, 1.);
                     self.idx += 2;
                 } else {
                     self.idx += 2 * 34 + 1;
                     for r in &max_ev_table[0].required_tiles {
-                        let required_tid = r.tile.deaka().as_usize();
+                        let required_tid = r.tile.as_usize();
                         self.arr.assign(self.idx, required_tid, 1.);
                     }
                     self.idx += 1;
@@ -624,7 +618,7 @@ impl<'a> ObsEncoderContext<'a> {
 
         if can_discard {
             for candidate in candidates {
-                let tid = candidate.tile.deaka().as_usize();
+                let tid = candidate.tile.as_usize();
                 for (turn, ((&tenpai_prob, &win_prob), &ev)) in candidate
                     .tenpai_probs
                     .iter()
@@ -669,7 +663,7 @@ impl<'a> ObsEncoderContext<'a> {
     {
         let mut counts = [0; 34];
         for tile in tiles {
-            let tile_id = tile.deaka().as_usize();
+            let tile_id = tile.as_usize();
 
             let i = &mut counts[tile_id];
             self.arr.assign(self.idx + *i, tile_id, 1.);
@@ -686,14 +680,13 @@ impl<'a> ObsEncoderContext<'a> {
     fn encode_self_kawa(&mut self, item: Option<&KawaItem>) {
         if let Some(k) = item {
             for kan in k.kan {
-                // deaka is required, it is possible for it to be an aka
-                // (for example in Daiminkan and Kakan).
-                let tile_id = kan.deaka().as_usize();
+                // no aka tiles in the local rules
+                let tile_id = kan.as_usize();
                 self.arr.assign(self.idx, tile_id, 1.);
             }
 
             let sutehai = k.sutehai;
-            let tile_id = sutehai.tile.deaka().as_usize();
+            let tile_id = sutehai.tile.as_usize();
             self.arr.assign(self.idx + 1, tile_id, 1.);
             if sutehai.tile.is_aka() {
                 self.arr.fill(self.idx + 2, 1.);
@@ -712,8 +705,8 @@ impl<'a> ObsEncoderContext<'a> {
                 // they are included in fuuro_overview instead.
                 //
                 // This is one-hot.
-                let a = cp.consumed[0].deaka().as_usize();
-                let b = cp.consumed[1].deaka().as_usize();
+                let a = cp.consumed[0].as_usize();
+                let b = cp.consumed[1].as_usize();
                 let min = a.min(b);
                 let max = a.max(b);
                 self.arr.assign(self.idx, min, 1.);
@@ -721,12 +714,12 @@ impl<'a> ObsEncoderContext<'a> {
             }
 
             for kan in k.kan {
-                let tile_id = kan.deaka().as_usize();
+                let tile_id = kan.as_usize();
                 self.arr.assign(self.idx + 2, tile_id, 1.);
             }
 
             let sutehai = k.sutehai;
-            let tile_id = sutehai.tile.deaka().as_usize();
+            let tile_id = sutehai.tile.as_usize();
             self.arr.assign(self.idx + 3, tile_id, 1.);
             if sutehai.tile.is_aka() {
                 self.arr.fill(self.idx + 4, 1.);

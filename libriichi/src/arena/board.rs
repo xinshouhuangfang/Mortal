@@ -223,8 +223,6 @@ impl BoardState {
         self.has_hora = true;
 
         let is_ron = single_actor != single_target;
-        let mut honba_left = self.board.honba as i32; // mut in case of multi-ron
-        let mut kyotaku_point = self.board.kyotaku as i32 * 1000; // ditto
         self.board.kyotaku = 0; // Unlike honba, kyotaku in self will be cleared
 
         // 本地规则：无里宝牌，结算时始终传空 `ura_indicators`。由于
@@ -417,7 +415,7 @@ impl BoardState {
             });
 
         let mut encode_tile = |idx: usize, tile: Tile| {
-            let tile_id = tile.deaka().as_usize();
+            let tile_id = tile.as_usize();
             arr.assign(idx, tile_id, 1.);
             if tile.is_aka() {
                 arr.fill(idx + 1, 1.);

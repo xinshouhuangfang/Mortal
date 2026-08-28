@@ -10,8 +10,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use ndarray::prelude::*;
 
 pub struct BatchGame {
-    /// 8 for hanchan and 4 for tonpuu
-    pub length: u8,
     pub init_scores: [i32; 4],
     pub disable_progress_bar: bool,
 }
@@ -26,7 +24,6 @@ pub struct Index {
 
 #[derive(Default)]
 struct Game {
-    length: u8,
     seed: (u64, u64),
     indexes: [Index; 4],
 
@@ -151,7 +148,6 @@ impl Game {
 impl BatchGame {
     pub const fn tenhou_hanchan(disable_progress_bar: bool) -> Self {
         Self {
-            length: 1,
             init_scores: [25000; 4],
             disable_progress_bar,
         }
@@ -184,7 +180,6 @@ impl BatchGame {
                 }
 
                 let game = Box::new(Game {
-                    length: self.length,
                     seed,
                     indexes: *idxs,
                     scores: self.init_scores,

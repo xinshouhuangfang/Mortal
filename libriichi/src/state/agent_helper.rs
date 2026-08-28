@@ -110,7 +110,7 @@ impl PlayerState {
         }
 
         if let Some(last_self_tsumo) = self.last_self_tsumo {
-            if self.waits[last_self_tsumo.deaka().as_usize()] {
+            if self.waits[last_self_tsumo.as_usize()] {
                 // already agari and any discard will result in furiten
                 return ret;
             }
@@ -425,7 +425,7 @@ impl PlayerState {
         let mut tehai = self.tehai;
         let mut final_doras_owned = self.doras_owned[0];
         if is_ron {
-            let tid = winning_tile.deaka().as_usize();
+            let tid = winning_tile.as_usize();
             tehai[tid] += 1;
             final_doras_owned += self.dora_factor[tid];
             if winning_tile.is_aka() {
@@ -455,7 +455,7 @@ impl PlayerState {
             ankans: &self.ankans,
             bakaze: self.bakaze.as_u8(),
             jikaze: self.jikaze.as_u8(),
-            winning_tile: winning_tile.deaka().as_u8(),
+            winning_tile: winning_tile.as_u8(),
             is_ron,
         };
         let agari = agari_calc
@@ -486,7 +486,7 @@ impl PlayerState {
 
         if let Some(tile) = self.last_self_tsumo {
             // 3n+2, tenpai after tsumo.
-            return if self.waits[tile.deaka().as_usize()] {
+            return if self.waits[tile.as_usize()] {
                 -1
             } else {
                 0
@@ -552,7 +552,7 @@ impl PlayerState {
         let is_discard_after_riichi = can_discard && self.riichi_accepted[0];
         if is_discard_after_riichi {
             let last_tsumo = self.last_self_tsumo.unwrap();
-            tehai[last_tsumo.deaka().as_usize()] -= 1;
+            tehai[last_tsumo.as_usize()] -= 1;
             match last_tsumo.as_u8() {
                 tu8!(5mr) => akas_in_hand[0] = false,
                 tu8!(5pr) => akas_in_hand[1] = false,

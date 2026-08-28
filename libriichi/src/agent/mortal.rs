@@ -2,7 +2,7 @@ use super::{BatchAgent, InvisibleState};
 use crate::consts::ACTION_SPACE;
 use crate::mjai::{Event, EventExt, Metadata};
 use crate::state::PlayerState;
-use crate::{must_tile, tu8};
+use crate::{must_tile};
 use std::mem;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -313,7 +313,6 @@ impl BatchAgent for MortalBatchAgent {
         let kan_select_idx = sync_fields.kan_action_idxs[index].take();
 
         let actor = self.player_ids[index];
-        let akas_in_hand = state.akas_in_hand();
         let cans = state.last_cans();
 
         let orig_action = self.actions[action_idx];
@@ -359,22 +358,11 @@ impl BatchAgent for MortalBatchAgent {
                     .last_kawa_tile()
                     .context("invalid state: no last kawa tile")?;
 
-                let can_akaize_consumed = match pai.as_u8() {
-                    tu8!(5m) => akas_in_hand[0],
-                    tu8!(5p) => akas_in_hand[1],
-                    tu8!(5s) => akas_in_hand[2],
-                    _ => false,
-                };
-                let consumed = if can_akaize_consumed {
-                    [pai.akaize(), pai.deaka()]
-                } else {
-                    [pai.deaka(); 2]
-                };
                 Event::Pon {
                     actor,
                     target: cans.target_actor,
                     pai,
-                    consumed,
+                    consumed: [pai; 2],
                 }
             }
 
@@ -407,23 +395,23 @@ impl BatchAgent for MortalBatchAgent {
                 };
 
                 if cans.can_daiminkan {
-                    let consumed = [tile.deaka(); 3];
+                    let consumed = [tile; 3];
                     Event::Daiminkan {
                         actor,
                         target: cans.target_actor,
-                        pai: tile.deaka(),
+                        pai: tile,
                         consumed,
                     }
-                } else if cans.can_ankan && ankan_candidates.contains(&tile.deaka()) {
+                } else if cans.can_ankan && ankan_candidates.contains(&tile) {
                     Event::Ankan {
                         actor,
-                        consumed: [tile.deaka(); 4],
+                        consumed: [tile; 4],
                     }
                 } else {
                     Event::Kakan {
                         actor,
-                        pai: tile.deaka(),
-                        consumed: [tile.deaka(); 3],
+                        pai: tile,
+                        consumed: [tile; 3],
                     }
                 }
             }
