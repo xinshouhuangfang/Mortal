@@ -30,7 +30,6 @@ pub enum Event {
     },
     StartKyoku {
         bakaze: Tile,
-        dora_marker: Tile,
         /// Counts from 1
         #[serde_as(deserialize_as = "TryFromInto<BoundedU8<1, 4>>")]
         kyoku: u8,
@@ -168,12 +167,9 @@ impl Event {
         match self {
             Self::StartKyoku {
                 bakaze,
-                dora_marker,
                 tehais,
                 ..
             } => {
-                swap_tile(bakaze);
-                swap_tile(dora_marker);
                 tehais.iter_mut().flatten().for_each(swap_tile);
             }
             Self::Tsumo { pai, .. } | Self::Dahai { pai, .. } => swap_tile(pai),

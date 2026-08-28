@@ -61,7 +61,6 @@ impl PlayerState {
         match *event {
             Event::StartKyoku {
                 bakaze,
-                dora_marker,
                 kyoku,
                 honba,
                 kyotaku,
@@ -70,7 +69,6 @@ impl PlayerState {
                 tehais,
             } => self.start_kyoku(
                 bakaze,
-                dora_marker,
                 kyoku,
                 honba,
                 kyotaku,
@@ -112,9 +110,6 @@ impl PlayerState {
     fn start_kyoku(
         &mut self,
         bakaze: Tile,
-        // 本地规则：无宝牌，忽略 `dora_marker`（协议字段，固定为 1m），
-        // 不再设置任何 dora 状态。
-        _dora_marker: Tile,
         kyoku: u8,
         honba: u8,
         kyotaku: u8,

@@ -58,51 +58,15 @@ impl IntegerEncoder {
 
     fn encode(self, ctx: &mut ObsEncoderContext<'_>) {
         let n = self.n.min(self.cap);
-        match ctx.version {
-            1 => {
-                ctx.arr.fill_rows(ctx.idx, n, 1.);
-                ctx.idx += self.cap;
-            }
-            2 | 3 => {
-                debug_assert!(self.one_hot || self.rescale || self.rbf_intervals.is_some());
-
-                if self.one_hot {
-                    ctx.arr.fill(ctx.idx + n, 1.);
-                    ctx.idx += self.cap + 1;
-                }
-                if self.rescale {
-                    let v = n as f32 / self.cap as f32;
-                    ctx.arr.fill(ctx.idx, v);
-                    ctx.idx += 1;
-                }
-
-                if let Some(intervals) = self.rbf_intervals.map(|v| v.get()) {
-                    debug_assert!(intervals >= 3);
-                    let interval_size = self.cap as f32 / intervals as f32;
-                    for i in 1..intervals {
-                        let x = self.n as f32; // the original value, not the clamped
-                        let mu = i as f32 * interval_size;
-                        let sigma = interval_size;
-                        let v = (-(x - mu).powi(2) / (2. * sigma.powi(2))).exp();
-                        ctx.arr.fill(ctx.idx + i - 1, v);
-                    }
-                    ctx.idx += intervals - 1;
-                }
-            }
-            4 => {
-                debug_assert!(self.one_hot || self.rescale);
-
-                if self.one_hot {
-                    ctx.arr.fill(ctx.idx + n, 1.);
-                    ctx.idx += self.cap + 1;
-                }
-                if self.rescale {
-                    let v = n as f32 / self.cap as f32;
-                    ctx.arr.fill(ctx.idx, v);
-                    ctx.idx += 1;
-                }
-            }
-            _ => unreachable!(),
+        debug_assert!(self.one_hot || self.rescale);
+        if self.one_hot {
+            ctx.arr.fill(ctx.idx + n, 1.);
+            ctx.idx += self.cap + 1;
+        }
+        if self.rescale {
+            let v = n as f32 / self.cap as f32;
+            ctx.arr.fill(ctx.idx, v);
+            ctx.idx += 1;
         }
     }
 }

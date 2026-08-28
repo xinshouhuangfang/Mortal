@@ -16,8 +16,6 @@ use rand::prelude::*;
 use rand_chacha::ChaCha12Rng;
 use sha3::{Digest, Sha3_256};
 
-/// The fields are all pub on purpose so the caller will be able to set the
-/// yama, doras, scores directly.
 ///
 /// Other than what is mentioned below, everything else is identical to Tenhou's
 /// Rule.
@@ -40,7 +38,7 @@ pub struct Board {
     ///
     /// 本地规则：无宝牌（表宝/里宝）、无赤宝牌、无岭上自摸区。
     /// 发牌时每人 13 张，剩余 84 张全部进入 `yama` 作为牌山，杠后也从
-    /// `yama` 末尾（pop）补牌，不再有独立的 rinshan / dora / ura 栈。
+    /// `yama` 末尾（pop）补牌
     pub yama: Vec<Tile>,
 }
 
@@ -90,7 +88,6 @@ impl Board {
 
         self.haipai = array::from_fn(|i| seq[i * 13..(i + 1) * 13].try_into().unwrap());
         let mut idx = 13 * 4;
-        // 本地规则：去掉 rinshan(4) / dora(5) / ura(5) 的分段，发完 52 张手牌后
         // 剩余 84 张全部进入牌山 `yama`。
         self.yama = seq[idx..].to_vec();
         idx += self.yama.len();
@@ -174,9 +171,6 @@ impl BoardState {
         let bakaze = must_tile!(tu8!(E) + self.board.kyoku / 4);
         let start_kyoku = Event::StartKyoku {
             bakaze,
-            // 本地规则：无宝牌，`StartKyoku` 的 `dora_marker` 字段（协议必填）
-            // 固定传 `1m`，不表示实际宝牌。
-            dora_marker: t!(1m),
             kyoku: self.oya + 1,
             honba: self.board.honba,
             kyotaku: self.board.kyotaku,
