@@ -1,6 +1,6 @@
 use super::game::{BatchGame, Index};
 use super::result::GameResult;
-use crate::agent::{AkochanAgent, BatchAgent, new_py_agent};
+use crate::agent::{BatchAgent, new_py_agent};
 use std::fs::{self, File};
 use std::io;
 use std::iter;
@@ -49,60 +49,6 @@ impl TwoVsTwo {
                 |player_ids| new_py_agent(champion, player_ids),
                 seed_start,
                 seed_count,
-            )?;
-            Ok(())
-        })
-    }
-
-    pub fn ako_vs_py(
-        &self,
-        engine: PyObject,
-        seed_start: (u64, u64),
-        seed_count: u64,
-        py: Python<'_>,
-    ) -> Result<()> {
-        py.allow_threads(move || {
-            self.run_batch(
-                |player_ids| AkochanAgent::new_batched(player_ids).map(|a| Box::new(a) as _),
-                |player_ids| new_py_agent(engine, player_ids),
-                seed_start,
-                seed_count,
-            )?;
-            Ok(())
-        })
-    }
-
-    pub fn py_vs_ako(
-        &self,
-        engine: PyObject,
-        seed_start: (u64, u64),
-        seed_count: u64,
-        py: Python<'_>,
-    ) -> Result<()> {
-        py.allow_threads(move || {
-            self.run_batch(
-                |player_ids| new_py_agent(engine, player_ids),
-                |player_ids| AkochanAgent::new_batched(player_ids).map(|a| Box::new(a) as _),
-                seed_start,
-                seed_count,
-            )?;
-            Ok(())
-        })
-    }
-
-    pub fn py_vs_ako_one(
-        &self,
-        engine: PyObject,
-        seed: (u64, u64),
-        split: usize,
-        py: Python<'_>,
-    ) -> Result<()> {
-        py.allow_threads(move || {
-            self.run_one(
-                |player_ids| new_py_agent(engine, player_ids),
-                |player_ids| AkochanAgent::new_batched(player_ids).map(|a| Box::new(a) as _),
-                seed,
-                split,
             )?;
             Ok(())
         })
