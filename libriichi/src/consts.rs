@@ -22,7 +22,7 @@ pub const fn obs_shape(version: u32) -> (usize, usize) {
         1 => (938, 34),
         2 => (942, 34),
         3 => (934, 34),
-        4 => (1012, 34),
+        4 => (847, 34),
         _ => unreachable!(),
     }
 }

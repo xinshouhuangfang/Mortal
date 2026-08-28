@@ -90,22 +90,6 @@ impl<'a> ObsEncoderContext<'a> {
             });
         self.idx += 4;
 
-        self.idx += 3;
-
-        self.idx += 8;
-
-        self.idx += 4;
-
-        self.idx += 4;
-
-        self.idx += 1;
-
-        self.idx += 1;
-
-        self.idx += 2;
-
-        self.idx += 1;
-
         self.encode_tile_set(state.dora_indicators);
 
         state.kawa[0]
@@ -122,17 +106,15 @@ impl<'a> ObsEncoderContext<'a> {
         self.idx += (18 - state.kawa[0].len().min(18)) * SELF_KAWA_ITEM_CHANNELS;
 
         let max_kawa_len = state.kawa.iter().map(|k| k.len()).max().unwrap();
-        if matches!(self.version, 3 | 4) {
-            for (turn, kawa_item) in state.kawa[0].iter().enumerate() {
-                if let Some(kawa_item) = kawa_item {
-                    let sutehai = kawa_item.sutehai;
-                    let tid = sutehai.tile.as_usize();
-                    let v = (-0.2 * (max_kawa_len - 1 - turn) as f32).exp();
-                    self.arr.assign(self.idx, tid, v);
-                }
+        for (turn, kawa_item) in state.kawa[0].iter().enumerate() {
+            if let Some(kawa_item) = kawa_item {
+                let sutehai = kawa_item.sutehai;
+                let tid = sutehai.tile.as_usize();
+                let v = (-0.2 * (max_kawa_len - 1 - turn) as f32).exp();
+                self.arr.assign(self.idx, tid, v);
             }
-            self.idx += 1;
         }
+        self.idx += 1;
 
         for player_kawa in &state.kawa[1..] {
             player_kawa
@@ -167,10 +149,6 @@ impl<'a> ObsEncoderContext<'a> {
 
         let v = state.tiles_left as f32 / 84.;
         self.arr.fill(self.idx, v);
-        self.idx += 1;
-
-        self.idx += 4;
-
         self.idx += 1;
 
         for player_kawa_overview in &state.kawa_overview {
@@ -231,9 +209,6 @@ impl<'a> ObsEncoderContext<'a> {
             }
         }
 
-        self.idx += 3;
-        self.idx += 3;
-
         state
             .waits
             .iter()
@@ -242,12 +217,8 @@ impl<'a> ObsEncoderContext<'a> {
             .for_each(|(t, _)| self.arr.assign(self.idx, t, 1.));
         self.idx += 1;
 
-        self.idx += 1;
-
         let n = state.shanten as usize;
         IntegerEncoder::new(n, 6).one_hot(true).encode(&mut self);
-
-        self.idx += 1;
 
         if self.at_kan_select {
             self.arr.fill(self.idx, 1.);
@@ -311,10 +282,6 @@ impl<'a> ObsEncoderContext<'a> {
         }
         self.idx += 5;
 
-        self.idx += 1;
-
-        self.idx += 3;
-
         if cans.can_pon {
             self.arr.fill(self.idx, 1.);
             if !self.at_kan_select {
@@ -364,13 +331,6 @@ impl<'a> ObsEncoderContext<'a> {
             }
         }
         self.idx += 1;
-
-        self.idx += 1;
-
-        self.idx += 2;
-
-        // Skip everything else.
-        self.idx += 2 * 34 + 2 + 3 * MAX_NUM_TURNS;
 
         assert_eq!(self.idx, self.arr.rows());
         let arr = self.arr.build();
