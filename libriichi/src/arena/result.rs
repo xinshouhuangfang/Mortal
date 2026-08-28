@@ -8,7 +8,6 @@ use serde_json as json;
 pub struct KyokuResult {
     pub kyoku: u8,
     // pub honba: u8,
-    pub can_renchan: bool,
     pub has_hora: bool,
     pub has_abortive_ryukyoku: bool,
     pub kyotaku_left: u8,

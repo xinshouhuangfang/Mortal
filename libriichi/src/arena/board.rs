@@ -52,7 +52,6 @@ pub struct BoardState {
     oya: u8,
     player_states: [PlayerState; 4],
 
-    can_renchan: bool,
     has_hora: bool,
     has_abortive_ryukyoku: bool,
     kyoku_deltas: [i32; 4],
@@ -62,7 +61,6 @@ pub struct BoardState {
     tiles_left: u8,
     tsumo_actor: u8,
     kans: u8,
-    check_four_kan: bool,
     paos: [Option<u8>; 4],
 
     log: Vec<EventExt>,
@@ -127,9 +125,6 @@ impl BoardState {
                 Poll::End => {
                     self.add_log_no_meta(Event::EndKyoku);
                     vec_add_assign(&mut self.board.scores, &self.kyoku_deltas);
-                    if self.has_abortive_ryukyoku {
-                        self.can_renchan = true;
-                    }
                     return Ok(poll);
                 }
             };
@@ -150,7 +145,6 @@ impl BoardState {
         KyokuResult {
             kyoku: self.board.kyoku,
             // honba: self.board.honba,
-            can_renchan: self.can_renchan,
             has_hora: self.has_hora,
             has_abortive_ryukyoku: self.has_abortive_ryukyoku,
             kyotaku_left: self.board.kyotaku,
@@ -215,7 +209,6 @@ impl BoardState {
 
     fn exhaustive_ryukyoku(&mut self) {
         let deltas = [0; 4];
-        self.can_renchan = self.player_states[self.oya as usize].shanten() == 0;
 
         vec_add_assign(&mut self.kyoku_deltas, &deltas);
         let ryukyoku = Event::Ryukyoku {
@@ -245,7 +238,6 @@ impl BoardState {
             .iter()
             .map(|ev| match ev.event {
                 Event::Hora { actor, .. } => {
-                    self.can_renchan |= actor == self.oya;
                     let point =
                         self.player_states[actor as usize].agari_points(is_ron, &ura_indicators);
                     Some(point).transpose()
@@ -362,12 +354,6 @@ impl BoardState {
                 _ => 2,
             })
             .unwrap(); // Unwrap is safe because it is proven non-empty
-
-        if self.check_four_kan && !matches!(ev.event, Event::Hora { .. }) {
-            // 四槓散了
-            self.abortive_ryukyoku();
-            return Ok(Poll::End);
-        }
 
         match ev.event {
             Event::None => {
