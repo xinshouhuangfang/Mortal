@@ -6,8 +6,10 @@ def train():
     import gc
     import gzip
     import json
+    import queue
     import shutil
     import random
+    import threading
     import torch
     import math
     from os import path
@@ -17,19 +19,17 @@ def train():
     from torch import optim, nn
     from torch.amp import GradScaler
     from torch.nn.utils import clip_grad_norm_
-    from torch.utils.data import DataLoader
     from torch.distributions import Categorical
     from torch.utils.tensorboard import SummaryWriter
-    from common import submit_param, parameter_count, drain, filtered_trimmed_lines, tqdm
+    from common import parameter_count, drain, filtered_trimmed_lines, tqdm
     from player import TestPlayer
-    from dataloader import FileDatasetsIter, worker_init_fn
+    from dataloader import FileDatasetsIter
     from lr_scheduler import LinearWarmUpCosineAnnealingLR
     from model import Brain, CategoricalPolicy
     from libriichi.consts import obs_shape
     from config import config
-    from copy import deepcopy
     from multiprocessing import Manager
-    
+
     version = config['control']['version']
 
     online = config['control']['online']
@@ -46,10 +46,8 @@ def train():
     enable_amp = config['control']['enable_amp']
     enable_compile = config['control']['enable_compile']
 
-    pts = config['env']['pts']
     file_batch_size = config['dataset']['file_batch_size']
     reserve_ratio = config['dataset']['reserve_ratio']
-    num_workers = config['dataset']['num_workers']
     num_epochs = config['dataset']['num_epochs']
     enable_augmentation = config['dataset']['enable_augmentation']
     augmented_first = config['dataset']['augmented_first']
@@ -120,7 +118,7 @@ def train():
             if 'shared_stats' in state and state['shared_stats'] is not None:
                 shared_stats['count'].value = state['shared_stats']['count']
                 shared_stats['mean'].value = state['shared_stats']['mean']
-                shared_stats['M2'].value = float(state['shared_stats']['variance'] * state['shared_stats']['count']) 
+                shared_stats['M2'].value = float(state['shared_stats']['variance'] * state['shared_stats']['count'])
         scaler.load_state_dict(state['scaler'])
         best_perf = state['best_perf']
         steps = state['steps']
@@ -182,13 +180,9 @@ def train():
         before_next_test_play = (test_every - steps % test_every) % test_every
         logging.info(f'total steps: {steps:,} (~{before_next_test_play:,})')
 
-        if num_workers > 1:
-            random.shuffle(file_list)
         file_data = FileDatasetsIter(
             version = version,
             file_list = file_list,
-            pts = pts,
-            shared_stats=shared_stats,
             file_batch_size = file_batch_size,
             reserve_ratio = reserve_ratio,
             player_names = player_names,
@@ -196,24 +190,33 @@ def train():
             enable_augmentation = enable_augmentation,
             augmented_first = augmented_first,
         )
-        data_loader = iter(DataLoader(
-            dataset = file_data,
-            batch_size = batch_size,
-            drop_last = False,
-            num_workers = num_workers,
-            pin_memory = True,
-            worker_init_fn = worker_init_fn,
-            persistent_workers=True
-        ))
 
-        remaining_obs = []
-        remaining_actions = []
-        remaining_masks = []
-        remaining_advantage = []
-        remaining_bs = 0
+        # Preload the whole dataset into memory once, then feed the GPU from
+        # the same tensors (new-style preload, same as train.py).
+        t_preload = datetime.now()
+        try:
+            obs_all, actions_all, masks_all, advantage_all = file_data.preload_awr()
+        except ValueError as ex:
+            logging.warning(f'training skipped: {ex}')
+            return
+        n_total = actions_all.shape[0]
+        logging.info(
+            f'preloaded {n_total:,} samples in {(datetime.now() - t_preload).total_seconds():.1f}s'
+        )
+
+        obs_all = torch.as_tensor(obs_all)
+        actions_all = torch.as_tensor(actions_all)
+        masks_all = torch.as_tensor(masks_all)
+        advantage_all = torch.as_tensor(advantage_all)
+
+        num_batches = n_total // batch_size
+        if num_batches == 0:
+            logging.warning(f'training skipped: {n_total:,} samples < batch_size {batch_size:,}')
+            return
+
         pb = tqdm(total=save_every, desc='TRAIN', initial=steps % save_every)
 
-        def train_batch(obs, actions, masks,advantage):
+        def train_batch(obs, actions, masks, advantage):
             nonlocal steps
             nonlocal idx
             nonlocal pb
@@ -282,8 +285,7 @@ def train():
                     stat = test_player.test_play(test_games // 4, mortal, policy_net, device)
                     mortal.train()
                     policy_net.train()
-                    
-                    
+
                     avg_pt = stat.avg_pt([90, 45, 0, -135]) # for display only, never used in training
                     better = avg_pt >= best_perf['avg_pt'] and stat.avg_rank <= best_perf['avg_rank']
                     if better:
@@ -346,49 +348,66 @@ def train():
                         shutil.copy(state_file, best_state_file)
                 pb = tqdm(total=save_every, desc='TRAIN')
 
-        for obs, actions, masks, advantage in data_loader:
-            bs = obs.shape[0]
-            if bs != batch_size:
-                remaining_obs.append(obs)
-                remaining_actions.append(actions)
-                remaining_masks.append(masks)
-                remaining_advantage.append(advantage)
-                remaining_bs += bs
-                continue
-            train_batch(obs, actions, masks, advantage)
+        # feed the GPU from the preloaded tensors; use a dedicated stream for
+        # H2D copies so they overlap with the forward/backward on the default
+        # stream (same as train.py)
+        perm = torch.randperm(n_total)
+        copy_stream = torch.cuda.Stream(device=device) if device.type == 'cuda' else None
+        batch_queue = queue.Queue(maxsize=2)
+        producer_error = []
 
-        remaining_batches = remaining_bs // batch_size
-        if remaining_batches > 0:
-            obs = torch.cat(remaining_obs, dim=0)
-            actions = torch.cat(remaining_actions, dim=0)
-            masks = torch.cat(remaining_masks, dim=0)
-            advantage = torch.cat(remaining_advantage, dim=0)
+        def producer():
+            try:
+                for b in range(num_batches):
+                    idxs = perm[b * batch_size:(b + 1) * batch_size]
+                    if copy_stream is not None:
+                        with torch.cuda.stream(copy_stream):
+                            batch = (
+                                obs_all[idxs].to(device, non_blocking=True),
+                                actions_all[idxs].to(device, non_blocking=True),
+                                masks_all[idxs].to(device, non_blocking=True),
+                                advantage_all[idxs].to(dtype=torch.float32, device=device, non_blocking=True),
+                            )
+                        copy_stream.synchronize()
+                    else:
+                        batch = (
+                            obs_all[idxs].to(device),
+                            actions_all[idxs].to(device),
+                            masks_all[idxs].to(device),
+                            advantage_all[idxs].to(dtype=torch.float32, device=device),
+                        )
+                    batch_queue.put(batch)
+                batch_queue.put(None)
+            except Exception as ex:
+                producer_error.append(ex)
+                batch_queue.put(None)
 
-            start = 0
-            end = batch_size
-            while end <= remaining_bs:
-                train_batch(
-                    obs[start:end],
-                    actions[start:end],
-                    masks[start:end],
-                    advantage[start:end],
-                )
-                start = end
-                end += batch_size
+        producer_thread = threading.Thread(target=producer, daemon=True)
+        producer_thread.start()
+
+        for _ in range(num_batches):
+            batch = batch_queue.get()
+            if batch is None:
+                break
+            train_batch(*batch)
+
+        producer_thread.join()
         pb.close()
+        if producer_error:
+            raise producer_error[0]
 
 
     def save_shared_stats(shared_stats, steps, writer):
-  
+
         count = shared_stats['count'].value
         mean = shared_stats['mean'].value
         m2 = shared_stats['M2'].value
 
         if count == 0:
             return {'count': 0, 'mean': 0, 'variance': 0}
-        
+
         if count > 0:
-       
+
             variance = m2 / count if count > 1 else 0
             std_dev = math.sqrt(variance)
             writer.add_scalar('stats/count', count, steps)
@@ -400,8 +419,7 @@ def train():
             'variance': variance,
             'std_dev': std_dev
             }
-       
-  
+
 
     while True:
         train_epoch()
@@ -411,7 +429,7 @@ def train():
         if not online:
             # only run one epoch for offline for easier control
             break
-    
+
 
 def main():
     import os

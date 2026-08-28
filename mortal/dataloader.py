@@ -18,6 +18,8 @@ class FileDatasetsIter(IterableDataset):
         num_epochs = 1,
         enable_augmentation = False,
         augmented_first = False,
+        pts = None,
+        shared_stats = None,
     ):
         super().__init__()
         self.version = version
@@ -30,6 +32,7 @@ class FileDatasetsIter(IterableDataset):
         self.num_epochs = num_epochs
         self.enable_augmentation = enable_augmentation
         self.augmented_first = augmented_first
+        self.shared_stats = shared_stats
         self.iterator = None
 
     def preload(self):
@@ -96,6 +99,59 @@ class FileDatasetsIter(IterableDataset):
             np.concatenate(masks_l),
             np.concatenate(steps_l),
             np.concatenate(rewards_l),
+        )
+
+    def preload_awr(self):
+        obs_l = []
+        actions_l = []
+        masks_l = []
+        advantage_l = []
+        total = 0
+
+        for _ in range(self.num_epochs):
+            for augmented in self._augment_order():
+                random.shuffle(self.file_list)
+                self.loader = GameplayLoader(
+                    version = self.version,
+                    oracle = self.oracle,
+                    player_names = self.player_names,
+                    excludes = self.excludes,
+                    augmented = augmented,
+                )
+                with tqdm(total = len(self.file_list), unit = 'file', desc = 'preload') as pb:
+                    for i in range(0, len(self.file_list), self.file_batch_size):
+                        chunk = self.file_list[i:i + self.file_batch_size]
+                        data = self.loader.load_gz_log_files(chunk)
+                        for file in data:
+                            for game in file:
+                                obs_list = game.take_obs()
+                                game_size = len(obs_list)
+                                if game_size == 0:
+                                    continue
+                                obs = np.stack(obs_list)
+                                actions = np.asarray(game.take_actions())
+                                masks = np.stack(game.take_masks())
+                                player_id = game.take_player_id()
+                                final_scores = np.asarray(game.take_grp().take_final_scores())
+                                kyoku_reward = (final_scores[player_id] - 25000) // 1000
+
+                                advantage = np.full(game_size, kyoku_reward, dtype=np.float64)
+
+                                obs_l.append(obs)
+                                actions_l.append(actions)
+                                masks_l.append(masks)
+                                advantage_l.append(advantage)
+                                total += game_size
+                            pb.update(1)
+
+        if total == 0:
+            raise ValueError('no training samples found')
+
+        return (
+            np.concatenate(obs_l),
+            np.concatenate(actions_l),
+            np.concatenate(masks_l),
+            np.concatenate(advantage_l),
         )
 
     def _augment_order(self):
