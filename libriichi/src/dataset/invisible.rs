@@ -44,7 +44,6 @@ impl Invisible {
                     bakaze,
                     kyoku,
                     honba,
-                    dora_marker,
                     tehais,
                     ..
                 } => {
@@ -66,8 +65,6 @@ impl Invisible {
                         ret.push(mem::take(&mut cur));
                         continue;
                     }
-                    cur.dora_indicators.push(*dora_marker);
-                    unknown_tiles[dora_marker.as_usize()] -= 1;
                     tehais
                         .iter()
                         .flatten()
@@ -93,10 +90,6 @@ impl Invisible {
                 }
                 Event::Ankan { .. } | Event::Kakan { .. } | Event::Daiminkan { .. } => {
                     from_rinshan = true;
-                }
-                Event::Dora { dora_marker } => {
-                    cur.dora_indicators.push(*dora_marker);
-                    unknown_tiles[dora_marker.as_usize()] -= 1;
                 }
                 Event::Hora {
                     ura_markers: Some(ura),
