@@ -1,2 +1,2 @@
-trainee
-baseline
+human
+mortal

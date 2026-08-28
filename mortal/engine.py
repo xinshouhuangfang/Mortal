@@ -66,7 +66,9 @@ class MortalEngine:
     
         if self.explore_rate > 0:
             is_greedy = torch.full((batch_size,), 1-self.explore_rate, device=self.device).bernoulli().to(torch.bool)
-            actions = torch.where(is_greedy, q_out.argmax(-1), Categorical(probs=q_out).sample())
+            # cast to float32: under AMP the probs are bfloat16 and can fail the
+            # simplex validation of Categorical
+            actions = torch.where(is_greedy, q_out.argmax(-1), Categorical(probs=q_out.to(torch.float32)).sample())
         else:
             is_greedy = torch.ones(batch_size, dtype=torch.bool, device=self.device)
             actions = q_out.argmax(-1)

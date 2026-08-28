@@ -3,7 +3,6 @@ import prelude
 import logging
 import socket
 import torch
-import numpy as np
 import time
 import gc
 from os import path
@@ -28,7 +27,6 @@ def main():
     train_player = TrainPlayer()
     param_version = -1
 
-    pts = np.array([90, 45, 0, -135])
     history_window = config['online']['history_window']
     history = []
 
@@ -50,19 +48,17 @@ def main():
         dqn.load_state_dict(rsp['dqn'])
         logging.info('param has been updated')
 
-        rankings, file_list = train_player.train_play(mortal, dqn, device)
-        avg_rank = rankings @ np.arange(1, 5) / rankings.sum()
-        avg_pt = rankings @ pts / rankings.sum()
+        total_score, file_list = train_player.train_play(mortal, dqn, device)
+        n_games = 4 * train_player.seed_count
+        avg_score = total_score / n_games
 
-        history.append(np.array(rankings))
+        history.append(total_score)
         if len(history) > history_window:
             del history[0]
-        sum_rankings = np.sum(history, axis=0)
-        ma_avg_rank = sum_rankings @ np.arange(1, 5) / sum_rankings.sum()
-        ma_avg_pt = sum_rankings @ pts / sum_rankings.sum()
+        ma_total_score = sum(history)
 
-        logging.info(f'trainee rankings: {rankings} ({avg_rank:.6}, {avg_pt:.6}pt)')
-        logging.info(f'last {len(history)} sessions: {sum_rankings} ({ma_avg_rank:.6}, {ma_avg_pt:.6}pt)')
+        logging.info(f'trainee total_score: {total_score} ({avg_score:.6}/game)')
+        logging.info(f'last {len(history)} sessions: {ma_total_score} total')
 
         logs = {}
         for filename in file_list:
@@ -78,8 +74,9 @@ def main():
             })
             logging.info('logs have been submitted')
         gc.collect()
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
 
 if __name__ == '__main__':
     try:
