@@ -16,7 +16,7 @@ import argparse
 import secrets
 import torch
 from config import config
-from model import Brain, DQN
+from model import Brain, DQN, CategoricalPolicy
 from engine import MortalEngine
 from libriichi.arena import OneVsThree
 
@@ -24,14 +24,25 @@ def build_engine(state_file, device):
     state = torch.load(state_file, weights_only=True, map_location=torch.device('cpu'))
     c = state['config']
     version = c['control'].get('version', 1)
+    # phase1 (train_offline_phase1.py) checkpoints use GroupNorm and store the
+    # policy head as `policy_net` (CategoricalPolicy); DQN checkpoints
+    # (train.py) use BatchNorm and store `current_dqn`.
+    norm = 'BN' if any('running_mean' in k for k in state['mortal']) else 'GN'
     mortal = Brain(
         version=version,
         conv_channels=c['resnet']['conv_channels'],
         num_blocks=c['resnet']['num_blocks'],
+        Norm=norm,
     ).eval()
-    dqn = DQN(version=version).eval()
+    if 'policy_net' in state:
+        dqn = CategoricalPolicy().eval()
+        dqn.load_state_dict(state['policy_net'])
+    elif 'current_dqn' in state:
+        dqn = DQN(version=version).eval()
+        dqn.load_state_dict(state['current_dqn'])
+    else:
+        raise KeyError(f"checkpoint {state_file} has neither 'policy_net' nor 'current_dqn'")
     mortal.load_state_dict(state['mortal'])
-    dqn.load_state_dict(state['current_dqn'])
     return MortalEngine(
         mortal,
         dqn,
@@ -74,11 +85,11 @@ def main():
 
         env = OneVsThree(disable_progress_bar=True, log_dir=args.log_dir)
         seed_key = secrets.randbits(16)
-        scores = [env.human_vs_py(
+        scores = env.human_vs_py(
             engine=engine,
             seed_start=(60000, seed_key),
             seed_count=1,
-        )]
+        )
 
     print()
     print('===== 结果(每局净分差 = 终局分 - 25000) =====')
