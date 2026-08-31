@@ -56,9 +56,10 @@ def main():
         if len(history) > history_window:
             del history[0]
         ma_total_score = sum(history)
+        ma_avg_score = ma_total_score / (len(history) * n_games)
 
         logging.info(f'trainee total_score: {total_score} ({avg_score:.6}/game)')
-        logging.info(f'last {len(history)} sessions: {ma_total_score} total')
+        logging.info(f'last {len(history)} sessions: {ma_avg_score:.6} avg/game')
 
         logs = {}
         for filename in file_list:
