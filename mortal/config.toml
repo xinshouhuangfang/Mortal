@@ -3,7 +3,7 @@
 
 [control]
 version = 4
-online = false
+online = true
 
 state_file = 'mortal.pth'
 best_state_file = 'best.pth'
@@ -14,10 +14,10 @@ enable_cudnn_benchmark = false
 enable_amp = false
 enable_compile = false
 
-batch_size = 512
+batch_size = 32
 opt_step_every = 1
 
-save_every = 400
+save_every = 32
 test_every = 100000
 submit_every = 400
 old_update_every = 400
@@ -41,7 +41,11 @@ log_dir = 'self_play_logs'
 seed_key = -1
 
 [dataset]
-globs = ['../logs/*.json.gz', 'play_human_logs/*.json.gz', 'train_logs/*.json.gz']
+globs = [
+#    '../logs/*.json.gz',
+#    'play_human_logs/*.json.gz',
+#    'train_logs/*.json.gz'
+]
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0
@@ -52,8 +56,8 @@ enable_augmentation = false
 augmented_first = false
 
 [resnet]
-conv_channels = 128
-num_blocks = 24
+conv_channels = 32
+num_blocks = 16
 
 [env]
 pts = [6.0, 4.0, 2.0, 0.0]
@@ -96,8 +100,8 @@ host = '127.0.0.1'
 port = 5000
 
 [online.server]
-buffer_dir = '/home/lichao/Mortal-Policy/mortal/buffer'
-drain_dir = '/home/lichao/Mortal-Policy/mortal/drain'
+buffer_dir = 'buffer'
+drain_dir = 'drain'
 sample_reuse_rate = 0
 sample_reuse_threshold = 0
 capacity = 1600
@@ -105,7 +109,7 @@ force_sequential = false
 
 [1v3]
 seed_key = -1
-games_per_iter = 1000
+games_per_iter = 100   
 iters = 1
 log_dir = '1v3_logs'
 
