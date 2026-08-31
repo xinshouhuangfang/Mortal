@@ -160,7 +160,36 @@ class FileDatasetsIter(IterableDataset):
         return (self.augmented_first, not self.augmented_first)
 
     def __iter__(self):
-        raise NotImplementedError('use preload()')
+        # AWR-style streaming iterator for the DataLoader path used by
+        # train_online.py. Yields per-sample (obs, action, mask, advantage)
+        # where advantage is the per-game kyoku-result pt, same as preload_awr.
+        for _ in range(self.num_epochs):
+            for augmented in self._augment_order():
+                random.shuffle(self.file_list)
+                self.loader = GameplayLoader(
+                    version = self.version,
+                    oracle = self.oracle,
+                    player_names = self.player_names,
+                    excludes = self.excludes,
+                    augmented = augmented,
+                )
+                for i in range(0, len(self.file_list), self.file_batch_size):
+                    chunk = self.file_list[i:i + self.file_batch_size]
+                    data = self.loader.load_gz_log_files(chunk)
+                    for file in data:
+                        for game in file:
+                            obs_list = game.take_obs()
+                            game_size = len(obs_list)
+                            if game_size == 0:
+                                continue
+                            obs = np.stack(obs_list)
+                            actions = np.asarray(game.take_actions())
+                            masks = np.stack(game.take_masks())
+                            player_id = game.take_player_id()
+                            final_scores = np.asarray(game.take_grp().take_final_scores())
+                            kyoku_reward = (final_scores[player_id] - 25000) // 1000
+                            for j in range(game_size):
+                                yield obs[j], actions[j], masks[j], kyoku_reward
 
 def worker_init_fn(*args, **kwargs):
     worker_info = torch.utils.data.get_worker_info()
