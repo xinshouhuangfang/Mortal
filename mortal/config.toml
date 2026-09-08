@@ -14,7 +14,7 @@ enable_cudnn_benchmark = false
 enable_amp = false
 enable_compile = false
 
-batch_size = 32
+batch_size = 64
 opt_step_every = 1
 
 save_every = 32
@@ -76,8 +76,8 @@ weight_decay = 0.1
 max_grad_norm = 0
 
 [optim.scheduler]
-peak = 1e-4
-final = 1e-4
+peak = 2e-4
+final = 2e-4
 warm_up_steps = 0
 max_steps = 0
 
@@ -109,18 +109,22 @@ force_sequential = false
 
 [1v3]
 seed_key = -1
-games_per_iter = 100   
+games_per_iter = 1000   
 iters = 1
 log_dir = '1v3_logs'
 
 [1v3.challenger]
 device = 'auto'
 name = 'trainee'
-state_file = 'mortal.pth'
+state_file = 'mortal_1v3train.pth'
 stochastic_latent = false
 enable_compile = false
 enable_amp = true
 enable_rule_based_agari_guard = true
+# 0 = greedy (evaluation); >0 = explore with rate like client.py/TrainPlayer,
+# i.e. sample (1-rate) of actions greedily and rate of them from the policy
+# distribution. Use >0 when generating logs that will feed [train_1v3].
+explore_rate = 0.0
 
 [1v3.champion]
 device = 'auto'
@@ -134,3 +138,30 @@ enable_rule_based_agari_guard = true
 [loop]
 iterations = 0
 selfplay_target = 2000
+
+# Configuration for train_1v3_logs.py (offline reproduction of the train_online
+# loss on 1v3 logs). Only the knobs specific to this script live here; shared
+# ones come from [control]/[resnet]/[policy]/[optim]/[test_play] so that the
+# loss/backprop stay identical to train_online.py.
+[train_1v3]
+globs = ['1v3_logs/*.json.gz']
+player_names = ['trainee']
+
+epochs = 1
+max_steps = 0
+seed = 0
+old_update_every = 0   # 0 = [control].old_update_every
+log_every = 0          # 0 = [control].log_every
+
+loss = 'online'        # 'online' (clipped surrogate, same as train_online) | 'awr' (for comparison)
+normalize_adv = false
+
+inspect = false        # true = only load the data, print sample stats and exit
+
+init_state = ''        # '' = [control].state_file
+out_state = ''         # '' = <init_state without .pth>_1v3train.pth
+resume = true         # true = resume optimizer/scheduler/old nets from out_state
+save_every = 0         # 0 = save only at the end of each epoch
+test_every = 0         # 0 = never auto test-play
+test_games = 0         # 0 = [test_play].games
+tensorboard_dir = ''   # '' = disabled
