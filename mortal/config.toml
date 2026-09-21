@@ -3,7 +3,7 @@
 
 [control]
 version = 4
-online = true
+online = false
 
 state_file = 'mortal.pth'
 best_state_file = 'best.pth'
@@ -42,9 +42,9 @@ seed_key = -1
 
 [dataset]
 globs = [
-#    '../logs/*.json.gz',
-#    'play_human_logs/*.json.gz',
-#    'train_logs/*.json.gz'
+    '../logs/*.json.gz',
+    'play_human_logs/*.json.gz',
+    'train_logs/*.json.gz'
 ]
 file_index = 'file_index.pth'
 file_batch_size = 15
@@ -116,7 +116,7 @@ log_dir = '1v3_logs'
 [1v3.challenger]
 device = 'auto'
 name = 'trainee'
-state_file = 'mortal_1v3train.pth'
+state_file = 'mortal.pth'
 stochastic_latent = false
 enable_compile = false
 enable_amp = true
