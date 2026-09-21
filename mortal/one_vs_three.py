@@ -74,12 +74,16 @@ def main():
         enable_amp = cfg['challenger']['enable_amp'],
         enable_rule_based_agari_guard = cfg['challenger']['enable_rule_based_agari_guard'],
         name = cfg['challenger']['name'],
+        explore_rate = cfg['challenger'].get('explore_rate', 0),
     )
 
     seed_start = 200
     for i, seed in enumerate(range(seed_start, seed_start + seeds_per_iter * iters, seeds_per_iter)):
         print('-' * 50)
         print('#', i)
+        if cfg['challenger'].get('explore_rate', 0) > 0:
+            print(f'challenger explores with rate {cfg["challenger"]["explore_rate"]}; '
+                  f'logs are usable as training data (player name must match the trainer filter)')
         env = OneVsThree(
             disable_progress_bar = False,
             log_dir = log_dir,
