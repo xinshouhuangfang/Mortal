@@ -16,10 +16,10 @@ enable_compile = false
 batch_size = 512
 opt_step_every = 1
 
-log_every = 50
-save_every = 50
+log_every = 5000
+save_every = 5000
 test_every = 0
-train_epochs = 20
+train_epochs = 10
 
 # using env `TRAIN_PLAY_PROFILE`
 [train_play.default]
@@ -43,7 +43,7 @@ top_p = 1.0
 seed_key = -1
 
 [dataset]
-globs = ['../logs/*.json.gz', 'play_human_logs/*.json.gz', 'train_logs/*.json.gz']
+globs = ['../logs/*.json.gz', 'play_human_logs/*.json.gz']
 file_index = 'file_index.pth'
 file_batch_size = 15
 reserve_ratio = 0.0

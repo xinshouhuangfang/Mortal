@@ -1,4 +1,4 @@
-def train():
+def train(train_epochs=None):
     import prelude
 
     import logging
@@ -38,7 +38,8 @@ def train():
     assert test_every == 0 or test_every % save_every == 0, (
         f'test_every ({test_every}) must be a multiple of save_every ({save_every}) or 0'
     )
-    train_epochs = config['control'].get('train_epochs', 1)
+    if train_epochs is None:
+        train_epochs = config['control'].get('train_epochs', 1)
     min_q_weight = config['cql']['min_q_weight']
 
     device = torch.device(config['control']['device'])
@@ -418,11 +419,17 @@ def train():
     for i in range(train_epochs):
         train_epoch()
         gc.collect()
+    save_checkpoint()
     # torch.cuda.empty_cache()
     # torch.cuda.synchronize()
 
 def main():
-    train()
+    import argparse
+    parser = argparse.ArgumentParser(description='train mortal')
+    parser.add_argument('--train-epochs', type=int, default=None,
+                        help='number of training epochs (overrides config)')
+    args = parser.parse_args()
+    train(train_epochs=args.train_epochs)
 
 if __name__ == '__main__':
     try:
