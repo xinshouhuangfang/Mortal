@@ -80,6 +80,11 @@ pub enum Event {
         actor: u8,
         consumed: [Tile; 4],
     },
+    // 本地规则：无宝牌。此事件仅为兼容旧日志（如 `logs/*.json.gz`）中
+    // 杠后翻开新宝牌指示牌而保留，加载时会被忽略。
+    Dora {
+        dora_marker: Tile,
+    },
     Hora {
         #[serde_as(deserialize_as = "TryFromInto<Actor>")]
         actor: u8,

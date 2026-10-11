@@ -291,7 +291,11 @@ impl Gameplay {
         } = ctx;
 
         let cur = &wnd[0];
-        let next = &wnd[1];
+        let next = if matches!(wnd[1], Event::Dora { .. }) {
+            &wnd[2]
+        } else {
+            &wnd[1]
+        };
 
         match cur {
             Event::StartGame { names, .. } => {
