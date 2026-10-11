@@ -10,8 +10,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use ndarray::prelude::*;
 
 pub struct BatchGame {
-    /// 8 for hanchan and 4 for tonpuu
-    pub length: u8,
     pub init_scores: [i32; 4],
     pub disable_progress_bar: bool,
 }
@@ -26,7 +24,6 @@ pub struct Index {
 
 #[derive(Default)]
 struct Game {
-    length: u8,
     seed: (u64, u64),
     indexes: [Index; 4],
 
@@ -44,14 +41,6 @@ struct Game {
 
     kyoku_started: bool,
     ended: bool,
-    /// Used in 西入 where the oya and another player get to 30000 at the same
-    /// time, but the game continues because oya is not the top.
-    ///
-    /// As per [Tenhou's rule](https://tenhou.net/man/#RULE):
-    ///
-    /// > サドンデスルールは、30000点(供託未収)以上になった時点で終了、ただし親の
-    /// > 連荘がある場合は連荘を優先する
-    in_renchan: bool,
 }
 
 impl Game {
@@ -62,19 +51,6 @@ impl Game {
         }
 
         if !self.kyoku_started {
-            // after W4
-            // or, after all-last
-            //   and, oya is not in renchan (if oya is in renchan, it would already have been ended in the renchan owari check)
-            //   and, anyone has more than 30k
-            if self.kyoku >= self.length + 4
-                || self.kyoku >= self.length
-                    && !self.in_renchan
-                    && self.scores.iter().any(|&s| s >= 30000)
-            {
-                self.ended = true;
-                return Ok(());
-            }
-
             let mut next_board = Board {
                 kyoku: self.kyoku,
                 honba: self.honba,
@@ -113,35 +89,17 @@ impl Game {
 
             Poll::End => {
                 self.kyoku_started = false;
-                self.in_renchan = false;
 
                 for idx in &self.indexes {
                     agents[idx.agent_idx].end_kyoku(idx.player_id_idx)?;
                 }
 
                 let kyoku_result = self.board.end();
-                self.kyotaku = kyoku_result.kyotaku_left;
                 self.scores = kyoku_result.scores;
 
                 let logs = self.board.take_log();
                 self.game_log.push(logs);
 
-                let has_tobi = self.scores.iter().any(|&s| s < 0);
-                if has_tobi {
-                    self.ended = true;
-                    return Ok(());
-                }
-
-                if kyoku_result.has_abortive_ryukyoku {
-                    self.honba += 1;
-                    return self.poll(agents);
-                }
-
-                // renchan owari conditions:
-                // 1. can renchan
-                // 2. is at all-last
-                // 3. oya has at least 30000
-                // 4. oya is the top
                 self.ended = true;
                 return Ok(());
             }
@@ -152,10 +110,6 @@ impl Game {
 
     fn commit(&mut self, agents: &mut [Box<dyn BatchAgent>]) -> Result<Option<GameResult>> {
         if self.ended {
-            if self.kyotaku > 0 {
-                *self.scores.iter_mut().min_by_key(|s| -**s).unwrap() += self.kyotaku as i32 * 1000;
-            }
-
             let names = array::from_fn(|i| agents[self.indexes[i].agent_idx].name());
             let game_result = GameResult {
                 names,
@@ -194,15 +148,6 @@ impl Game {
 impl BatchGame {
     pub const fn tenhou_hanchan(disable_progress_bar: bool) -> Self {
         Self {
-            length: 8,
-            init_scores: [25000; 4],
-            disable_progress_bar,
-        }
-    }
-
-    pub const fn tenhou_east(disable_progress_bar: bool) -> Self {
-        Self {
-            length: 1,
             init_scores: [25000; 4],
             disable_progress_bar,
         }
@@ -235,7 +180,6 @@ impl BatchGame {
                 }
 
                 let game = Box::new(Game {
-                    length: self.length,
                     seed,
                     indexes: *idxs,
                     scores: self.init_scores,
@@ -295,61 +239,4 @@ impl BatchGame {
 
         Ok(game_results)
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::agent::{HumanAgent, Tsumogiri};
-
-    #[test]
-    fn tsumogiri() {
-        let g = BatchGame::tenhou_hanchan(true);
-        let mut agents = [
-            Box::new(Tsumogiri::new_batched(&[0, 1, 2, 3]).unwrap()) as _,
-            Box::new(Tsumogiri::new_batched(&[3, 2, 1, 0]).unwrap()) as _,
-        ];
-        let indexes = &[
-            [
-                Index {
-                    agent_idx: 0,
-                    player_id_idx: 0,
-                },
-                Index {
-                    agent_idx: 0,
-                    player_id_idx: 1,
-                },
-                Index {
-                    agent_idx: 1,
-                    player_id_idx: 1,
-                },
-                Index {
-                    agent_idx: 1,
-                    player_id_idx: 0,
-                },
-            ],
-            [
-                Index {
-                    agent_idx: 1,
-                    player_id_idx: 3,
-                },
-                Index {
-                    agent_idx: 1,
-                    player_id_idx: 2,
-                },
-                Index {
-                    agent_idx: 0,
-                    player_id_idx: 2,
-                },
-                Index {
-                    agent_idx: 0,
-                    player_id_idx: 3,
-                },
-            ],
-        ];
-
-        g.run(&mut agents, indexes, &[(1009, 0), (1021, 0)])
-            .unwrap();
-    }
-
 }

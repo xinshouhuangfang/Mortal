@@ -649,7 +649,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
             ankans: self.sup.ankans,
             bakaze: self.sup.bakaze,
             jikaze: self.sup.jikaze,
-            winning_tile: win_tile.deaka().as_u8(),
+            winning_tile: win_tile.as_u8(),
             is_ron: false,
         };
         let is_oya = self.sup.jikaze == tu8!(E);
@@ -674,7 +674,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
         let (fu, han) = match calc.agari(additional_yakus, num_doras)? {
             Agari::Normal { fu, han } => (fu, han),
             a @ Agari::Yakuman(_) => {
-                return Some([a.point(is_oya).tsumo_total(is_oya) as f32; 4]);
+                return Some([a.point(is_oya).tsumo_total() as f32; 4]);
             }
         };
 
@@ -725,7 +725,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
                         fu,
                         han: han + i as u8 + j as u8,
                     };
-                    *s += agari.point(is_oya).tsumo_total(is_oya) as f32 * p;
+                    *s += agari.point(is_oya).tsumo_total() as f32 * p;
                 }
             }
         } else if assume_riichi && self.sup.dora_indicators.len() > 1 {
@@ -742,7 +742,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
                         fu,
                         han: han + i as u8 + j as u8,
                     };
-                    *s += agari.point(is_oya).tsumo_total(is_oya) as f32 * p;
+                    *s += agari.point(is_oya).tsumo_total() as f32 * p;
                 }
             }
         } else {
@@ -752,7 +752,7 @@ impl<const MAX_TSUMO: usize> SPCalculatorState<'_, MAX_TSUMO> {
                     fu,
                     han: han + i as u8,
                 };
-                *s = agari.point(is_oya).tsumo_total(is_oya) as f32;
+                *s = agari.point(is_oya).tsumo_total() as f32;
             }
         }
 
@@ -796,7 +796,7 @@ mod test {
         let tehai = hand("45678m 34789p 3344z").unwrap();
         let mut tiles_seen = tehai;
         for ind in calc.dora_indicators {
-            tiles_seen[ind.deaka().as_usize()] += 1;
+            tiles_seen[ind.as_usize()] += 1;
         }
         let state = InitState {
             tehai,
@@ -819,7 +819,7 @@ mod test {
         let tehai = hand("3667m 23489p 34688s").unwrap();
         let mut tiles_seen = tehai;
         for ind in calc.dora_indicators {
-            tiles_seen[ind.deaka().as_usize()] += 1;
+            tiles_seen[ind.as_usize()] += 1;
         }
         let state = InitState {
             tehai,
@@ -868,7 +868,7 @@ mod test {
         let tehai = hand("45677m 456778p 248s").unwrap();
         let mut tiles_seen = tehai;
         for ind in calc.dora_indicators {
-            tiles_seen[ind.deaka().as_usize()] += 1;
+            tiles_seen[ind.as_usize()] += 1;
         }
         let state = InitState {
             tehai,
@@ -925,7 +925,7 @@ mod test {
         let tehai = hand("9999m 6677p 88s 335z 1m").unwrap();
         let mut tiles_seen = tehai;
         for ind in calc.dora_indicators {
-            tiles_seen[ind.deaka().as_usize()] += 1;
+            tiles_seen[ind.as_usize()] += 1;
         }
         let state = InitState {
             tehai,
@@ -976,7 +976,7 @@ mod test {
         let tehai = hand("45677m 456778p 48s").unwrap();
         let mut tiles_seen = tehai;
         for ind in calc.dora_indicators {
-            tiles_seen[ind.deaka().as_usize()] += 1;
+            tiles_seen[ind.as_usize()] += 1;
         }
         tiles_seen[tuz!(5s)] += 4;
 

@@ -44,7 +44,6 @@ impl Invisible {
                     bakaze,
                     kyoku,
                     honba,
-                    dora_marker,
                     tehais,
                     ..
                 } => {
@@ -66,8 +65,6 @@ impl Invisible {
                         ret.push(mem::take(&mut cur));
                         continue;
                     }
-                    cur.dora_indicators.push(*dora_marker);
-                    unknown_tiles[dora_marker.as_usize()] -= 1;
                     tehais
                         .iter()
                         .flatten()
@@ -93,10 +90,6 @@ impl Invisible {
                 }
                 Event::Ankan { .. } | Event::Kakan { .. } | Event::Daiminkan { .. } => {
                     from_rinshan = true;
-                }
-                Event::Dora { dora_marker } => {
-                    cur.dora_indicators.push(*dora_marker);
-                    unknown_tiles[dora_marker.as_usize()] -= 1;
                 }
                 Event::Hora {
                     ura_markers: Some(ura),
@@ -206,7 +199,7 @@ impl Invisible {
         }
 
         let mut encode_tile = |idx: usize, tile: Tile| {
-            let tile_id = tile.deaka().as_usize();
+            let tile_id = tile.as_usize();
             arr.assign(idx, tile_id, 1.);
             if tile.is_aka() {
                 arr.fill(idx + 1, 1.);

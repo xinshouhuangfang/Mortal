@@ -7,9 +7,6 @@ mod player_state;
 mod sp_tables;
 mod update;
 
-#[cfg(test)]
-mod test;
-
 use crate::py_helper::add_submodule;
 pub use action::ActionCandidate;
 pub use player_state::PlayerState;

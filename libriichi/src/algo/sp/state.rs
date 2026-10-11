@@ -55,7 +55,7 @@ impl From<InitState> for State {
 
 impl State {
     pub(super) const fn discard(&mut self, tile: Tile) {
-        self.tehai[tile.deaka().as_usize()] -= 1;
+        self.tehai[tile.as_usize()] -= 1;
         match tile.as_u8() {
             tu8!(5mr) => self.akas_in_hand[0] = false,
             tu8!(5pr) => self.akas_in_hand[1] = false,
@@ -65,7 +65,7 @@ impl State {
     }
 
     pub(super) const fn undo_discard(&mut self, tile: Tile) {
-        self.tehai[tile.deaka().as_usize()] += 1;
+        self.tehai[tile.as_usize()] += 1;
         match tile.as_u8() {
             tu8!(5mr) => self.akas_in_hand[0] = true,
             tu8!(5pr) => self.akas_in_hand[1] = true,
@@ -75,7 +75,7 @@ impl State {
     }
 
     pub(super) const fn deal(&mut self, tile: Tile) {
-        self.tiles_in_wall[tile.deaka().as_usize()] -= 1;
+        self.tiles_in_wall[tile.as_usize()] -= 1;
         match tile.as_u8() {
             tu8!(5mr) => self.akas_in_wall[0] = false,
             tu8!(5pr) => self.akas_in_wall[1] = false,
@@ -87,7 +87,7 @@ impl State {
 
     pub(super) const fn undo_deal(&mut self, tile: Tile) {
         self.discard(tile);
-        self.tiles_in_wall[tile.deaka().as_usize()] += 1;
+        self.tiles_in_wall[tile.as_usize()] += 1;
         match tile.as_u8() {
             tu8!(5mr) => self.akas_in_wall[0] = true,
             tu8!(5pr) => self.akas_in_wall[1] = true,
@@ -158,7 +158,7 @@ impl State {
                         });
                     }
                     draw_tiles.push(DrawTile {
-                        tile: tile.akaize(),
+                        tile: tile,
                         count: 1,
                         shanten_diff,
                     });
